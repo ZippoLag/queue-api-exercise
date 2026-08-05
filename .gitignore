@@ -1,0 +1,67 @@
+# .NET Core / .NET 9
+**/bin/
+**/obj/
+**/bin/Debug/
+**/bin/Release/
+**/obj/Debug/
+**/obj/Release/
+
+# NuGet
+**/packages/
+*.nupkg
+
+# IDE - Visual Studio
+*.user
+*.suo
+*.userosscache
+*.sln.docstates
+
+# IDE - Visual Studio Code
+.vscode/*
+!.vscode/settings.json
+!.vscode/tasks.json
+!.vscode/launch.json
+!.vscode/extensions.json
+
+# IDE - JetBrains Rider
+.idea/
+*.iml
+
+# Build results
+*.cache
+*.opensdf
+*.sdf
+
+# Test results
+**/TestResults/
+**/xUnit/
+
+# User-specific files
+*.userprefs
+
+# Local History for Visual Studio
+.localhistory/
+
+# Local History for Visual Studio Code
+.history/
+
+# Docker
+.docker/
+
+# Logs
+*.log
+logs/
+
+# OS generated files
+.DS_Store
+.DS_Store?
+._*
+.Spotlight-V100
+.Trashes
+ehthumbs.db
+Thumbs.db
+
+# Environment files
+.env
+.env.local
+.env.*.local
