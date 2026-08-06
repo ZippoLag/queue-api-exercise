@@ -1,8 +1,3 @@
 <Solution>
-  <Folder Name="/src/">
-    <Project Path="src/QueueApi.Domain/QueueApi.Domain.csproj" />
-  </Folder>
-  <Folder Name="/tests/">
-    <Project Path="tests/QueueApi.Domain.Tests/QueueApi.Domain.Tests.csproj" />
-  </Folder>
+
 </Solution>
