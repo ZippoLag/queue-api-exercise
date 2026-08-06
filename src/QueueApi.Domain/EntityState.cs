@@ -62,4 +62,20 @@ public sealed class EntityState
             isAdminDisabled: false
         );
     }
+
+    /// <summary>
+    /// Applies an unpublish event to the current entity state, creating a new state with the entity marked as unpublished.
+    /// According to requirements: "unpublish should still keep the data in your persistence layer".
+    /// The entity data (payload, version) is preserved but IsPublished is set to false.
+    /// </summary>
+    public static EntityState Apply(EntityState current, EntityUnpublished unpublished)
+    {
+        return new EntityState(
+            id: current.Id,
+            payloadJson: current.PayloadJson,
+            latestVersion: current.LatestVersion,
+            isPublished: false,
+            isAdminDisabled: current.IsAdminDisabled
+        );
+    }
 }
