@@ -20,3 +20,5 @@ I've been encouraged to rely on AI assistance for the production of this solutio
 
 ## Architecture / Plan
 In tandem of the KISS principle, it would be an oversight in my years of experience to not treat this project as if it had plans to grow in the future, meaning I will aim to keep a clear separation of boundaries and domains within a Modular Monolith, following a Ports+Adapters and Clean architecture. Then, given the fact that from the start there are requirements for event handling and distinct flows (CMS VS Users), following an Event-Driven architecture (not Event-Sourcing for now) with CQRS also in place feels natural. Observability via logging and possibly OTEL will be approached as soon as justified.
+
+To get usable value ASAP, I will focus on implementing visible API implementation first, adding inner domain and infrastructure (and simple UI?) later as needed.
