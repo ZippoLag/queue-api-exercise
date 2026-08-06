@@ -87,4 +87,20 @@ public sealed class EntityState
     {
         return null;
     }
+
+    /// <summary>
+    /// Applies an admin disable event to the current entity state, marking it as admin-disabled.
+    /// According to requirements: "an admin can disable them from the API - this will not affect the CMS, it's an overwrite that does not affect CMS data".
+    /// The entity data is preserved, IsPublished remains unchanged, and IsAdminDisabled is set to true.
+    /// </summary>
+    public static EntityState Apply(EntityState current, EntityAdminDisabled adminDisabled)
+    {
+        return new EntityState(
+            id: current.Id,
+            payloadJson: current.PayloadJson,
+            latestVersion: current.LatestVersion,
+            isPublished: current.IsPublished,
+            isAdminDisabled: true
+        );
+    }
 }

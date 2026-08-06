@@ -116,4 +116,38 @@ public class EntityStateTests
         // Assert: Should return null for hard-delete
         Assert.Null(resultState);
     }
+
+    /// <summary>
+    /// When an admin disables an entity via the API, the entity state preserves all data but marks it as admin-disabled.
+    /// According to requirements: "Data can not be updated by any kind of users, but an admin can disable them from the API - this will not affect the CMS, it's an overwrite that does not affect CMS data!".
+    /// This is distinct from unpublish which comes from the CMS — admin disable is an API-level overwrite that doesn't affect the underlying CMS data.
+    /// </summary>
+    [Fact]
+    public void Admin_disable_preserves_entity_data_but_marks_as_admin_disabled()
+    {
+        // Arrange: Create a published entity
+        var initialPublish = new EntityPublished(
+            Id: "entity-1",
+            PayloadJson: "{\"title\":\"Hello\"}",
+            Version: 2,
+            OccurredAt: DateTimeOffset.UtcNow.AddHours(-1)
+        );
+
+        var publishedState = EntityState.Apply(current: null, initialPublish);
+
+        // Act: Admin disables the entity - this will fail as EntityAdminDisabled and corresponding Apply don't exist yet
+        var adminDisable = new EntityAdminDisabled(
+            Id: "entity-1",
+            OccurredAt: DateTimeOffset.UtcNow
+        );
+
+        var resultState = EntityState.Apply(publishedState, adminDisable);
+
+        // Assert: Data is preserved but admin-disabled flag is set
+        Assert.Equal("entity-1", resultState.Id);
+        Assert.Equal(2, resultState.LatestVersion);
+        Assert.Equal("{\"title\":\"Hello\"}", resultState.PayloadJson);
+        Assert.True(resultState.IsPublished); // Still published (admin disable is independent of publish state)
+        Assert.True(resultState.IsAdminDisabled); // Now admin-disabled
+    }
 }
