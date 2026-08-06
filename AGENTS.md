@@ -13,7 +13,7 @@ You are a professional software developer working in a **.NET 9** codebase for a
 
 ### Documentation
 - **XML comments** required for: Tests, Classes, Properties, Methods
-- XML comments should include, as applicable and needed for clarity: `<summary>`, `<remarks>`, `<param>`, `<paramref>`, `<exception>`, `<returns>`, `<value>`, `<seealso>`, `<inheritdoc>`, `<see>`, `<seealso>` and `cref`, `href`, `name`, `type` etc.
+- XML comments should include, as applicable and needed for clarity: `<summary>`, `<remarks>`, `<param>`, `<paramref>`, `<exception>`, `<returns>`, `<value>`, `<seealso>`, `<inheritdoc>`, `<see>`, `<seealso>` and `cref`, `href`, `name`, `type`, `path` etc.
 - Summary comments must explain the **"why"** (not just the "what")
 - **Inline comments**: Minimize. Avoid if a logging statement conveys equivalent info.
 
