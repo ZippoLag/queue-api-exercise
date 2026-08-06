@@ -78,4 +78,13 @@ public sealed class EntityState
             isAdminDisabled: current.IsAdminDisabled
         );
     }
+
+    /// <summary>
+    /// Applies a delete event to the current entity state, returning null to indicate hard deletion.
+    /// According to requirements: "Deleted entities should be removed (hard-delete)".
+    /// </summary>
+    public static EntityState? Apply(EntityState current, EntityDeleted deleted)
+    {
+        return null;
+    }
 }

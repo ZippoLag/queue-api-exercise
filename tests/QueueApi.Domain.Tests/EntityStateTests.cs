@@ -87,4 +87,33 @@ public class EntityStateTests
         Assert.False(resultState.IsPublished); // Now unpublished
         Assert.False(resultState.IsAdminDisabled);
     }
+
+    /// <summary>
+    /// When a delete event arrives for an entity, applying that event should return null to indicate the entity is hard-deleted and removed from the system.
+    /// According to requirements: "Deleted entities should be removed (hard-delete)" and the schema example shows delete events with only id and timestamp.
+    /// </summary>
+    [Fact]
+    public void Delete_entity_returns_null_for_hard_delete()
+    {
+        // Arrange: Create a published entity
+        var initialPublish = new EntityPublished(
+            Id: "entity-1",
+            PayloadJson: "{\"title\":\"Hello\"}",
+            Version: 2,
+            OccurredAt: DateTimeOffset.UtcNow.AddHours(-1)
+        );
+
+        var publishedState = EntityState.Apply(current: null, initialPublish);
+
+        // Act: Apply delete event
+        var deleted = new EntityDeleted(
+            Id: "entity-1",
+            OccurredAt: DateTimeOffset.UtcNow
+        );
+
+        var resultState = EntityState.Apply(publishedState, deleted);
+
+        // Assert: Should return null for hard-delete
+        Assert.Null(resultState);
+    }
 }
