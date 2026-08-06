@@ -26,4 +26,28 @@ public class EntityStateTests
         Assert.True(state.IsPublished);
         Assert.False(state.IsAdminDisabled);
     }
+
+    /// <summary>
+    /// When two identical publish events arrive for an entity, the state remains unchanged.
+    /// </summary>
+    [Fact]
+    public void Publish_event_idempotent()
+    {
+        var published = new EntityPublished(
+            Id: "entity-1",
+            PayloadJson: "{\"title\":\"Hello\"}",
+            Version: 2,
+            OccurredAt: DateTimeOffset.UtcNow.AddMinutes(5)
+        );
+
+        // First publish creates the state
+        var firstState = EntityState.Apply(current: null, published);
+
+        // Second identical publish should create same state (idempotent behavior)
+        var secondState = EntityState.Apply(firstState, published);
+
+        Assert.Equal(firstState.Id, secondState.Id);
+        Assert.Equal(firstState.LatestVersion, secondState.LatestVersion);
+        Assert.Equal(firstState.PayloadJson, secondState.PayloadJson);
+    }
 }
