@@ -16,7 +16,7 @@ Authentication is handlded in both APIs as Basic Auth (sername+password) in all 
 > Note: no signature verification is provided in current version
 
 ### Persistence
-Persistence layer will be a single `PostgreSQL` DB, this may be broken down into 2 distinct data stores (one for incoming events, other for the current projected entity state). Caching is out of scope.
+Persistence layer will be a single `sqlite` file database, this may be broken down into several data stores when a real database engine becomes neccesary. Caching is out of scope.
 
 ### Logging
 TBD.
