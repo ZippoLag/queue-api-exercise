@@ -6,7 +6,8 @@
       "extensions": [
         "ms-dotnettools.csharp",
         "ms-dotnettools.csdevkit",
-        "johnpapa.vscode-peacock"
+        "johnpapa.vscode-peacock",
+        "rangav.vscode-thunder-client"
       ],
       "settings": {
         "terminal.integrated.defaultProfile.linux": "bash"
