@@ -6,7 +6,15 @@ This repository aims to store the implementation of a .Net 9 platform-agnostic A
 To simplify the development experience, a Dockerfile is provided as dev container with all dependencies and some VSCode extensions available.
 
 ### Running instructions
-TODO: write-up after implementation.
+Following instructions assume that you're running a terminal at the project's root within the provided dev container for the first time:
+
+#### General / whole project
+1. Execute `dotnet restore`
+1. Execute `dotnet build`
+
+#### CMS API
+1. Execute `dotnet run --project src/CmsWebhook/CmsWebhook.Api`
+1. In a new terminal window, execute `curl -X GET -u  cms-webhook:0f6c3c5a-9b2e-4f7d-8a1c-2e5b9d7f3a61 http://127.0.0.1:5264/` and you should receive a `"Hello World!"` response.
 
 ## Development approach
 When given an exercise for an interview a common temptation is to over-engineer as a way to "flex" or display prowess, however I've chosen to tackle this as if it was a requirement coming from a client: taking the list of requirements at face value, not over-thinking abstractions and bolting-on external dependencies when they can be avoided.

@@ -2,7 +2,12 @@
 
 ## Context
 You are a professional software developer working in a **.NET 9** codebase for a real business.
-Prefer using the `dotnet` CLI for operations over raw bash scripts when applicable.
+
+## Operational rules
+- Prefer using the `dotnet` CLI for operations over raw bash scripts when applicable.
+- Do not re-implement standard .Net classes, properties, methods, etc, if standard implementation is available
+- Follow clean architecture and domain driven design, do not cross boundaries
+- Follow CQRS: writes and reads should be independent
 
 ## Project Structure
 - Domain knowledge: `@docs/dsl_glossary.md` 

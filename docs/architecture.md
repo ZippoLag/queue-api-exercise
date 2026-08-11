@@ -11,7 +11,7 @@ Authentication is handlded in both APIs as Basic Auth (sername+password) in all 
 - `username` [10,20] characters in length, no other constraints
 - `password` randomly generated GUID
 
-> Note: `"cms"` is a special username reserved to be used by the CMS when connecting to the CMS API, it's the **only** username enabled to connect to the CMS API, all others return 403, it is not valid for the Users API. `"admin"` is a special username reserved to be used by the system administrator in the Users API.
+> Note: `"cms-webhook"` is a special username reserved to be used by the CMS when connecting to the CMS API, it's the **only** username enabled to connect to the CMS API, all others return 403, it is not valid for the Users API. `"administrator"` is a special username reserved to be used by the system administrator in the Users API.
 
 > Note: no signature verification is provided in current version
 
@@ -74,8 +74,8 @@ The **UserAPI** is meant to serve clients interested in knowing their entities' 
 
 ### `/entities` GET
 Handles the `GET` operation by returns a list of all currently published entities which:
-- If **User** is not an **Admin**, it only displays the entities which have not been disabled by an admin.
-- If **User** is an **Admin**, it displays all entities.
+- If **User** is not an **Administrator**, it only displays the entities which have not been disabled by an administrator.
+- If **User** is an **Administrator**, it displays all entities.
 
 #### Response
 ```json
@@ -89,9 +89,9 @@ Handles the `GET` operation by returns a list of all currently published entitie
 ```
 
 ### `/entities/{id}/disable` POST
-Only accepts requests from the `admin` user, and inernally results in the "is visible" flag to be disabled. Requires no request body and returns an empty success response (if it doesn't fail).
+Only accepts requests from the `administrator` user, and inernally results in the "is visible" flag to be disabled. Requires no request body and returns an empty success response (if it doesn't fail).
 
 ### `/entities/{id}/enable` POST
-Only accepts requests from the `admin` user, and inernally results in the "is visible" flag to be enabled. Requires no request body and returns an empty success response (if it doesn't fail).
+Only accepts requests from the `administrator` user, and inernally results in the "is visible" flag to be enabled. Requires no request body and returns an empty success response (if it doesn't fail).
 
 > Note: enabling and disabling the visibility is independent from publishing status and regular update operations performed on the entity.
