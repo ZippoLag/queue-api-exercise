@@ -179,11 +179,13 @@ public class BasicAuthenticationHandlerTests
     }
 
     /// <summary>
-    /// Verifies valid cms credentials succeed and produce a principal carrying the username claim.
+    /// Verifies valid cms credentials succeed and produce a principal carrying the username claim and no role claim.
     /// </summary>
     /// <remarks>
     /// Source business rule: spec "Only the cms user is authorized", scenario "Valid credentials for the
-    /// cms user"; the username claim is what the authorization policy matches against.
+    /// cms user"; the username claim is what the authorization policy matches against. The principal must
+    /// carry no <c>ClaimTypes.Role</c> claim because nothing consumes one and a dead role would imply
+    /// authorization semantics that don't exist (design decision 2).
     /// </remarks>
     [Fact]
     public async Task AuthenticateAsync_WithValidCmsCredentials_ReturnsSuccessWithUsernameClaim()
@@ -201,6 +203,8 @@ public class BasicAuthenticationHandlerTests
         result.Succeeded.Should().BeTrue();
         result.Principal!.Identity!.Name.Should().Be(CmsUsername);
         result.Principal.HasClaim(ClaimTypes.Name, CmsUsername).Should().BeTrue();
+        result.Principal.HasClaim(ClaimTypes.Role, "AuthenticatedUser").Should().BeFalse();
+        result.Principal.Claims.Should().NotContain(c => c.Type == ClaimTypes.Role);
         result.Ticket!.AuthenticationScheme.Should().Be(BasicAuthenticationDefaults.AuthenticationScheme);
     }
 

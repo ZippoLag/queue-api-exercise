@@ -94,7 +94,6 @@ public class BasicAuthenticationHandler : AuthenticationHandler<BasicAuthenticat
         var claims = new[]
         {
             new Claim(ClaimTypes.Name, username),
-            new Claim(ClaimTypes.Role, "AuthenticatedUser"),
         };
         var identity = new ClaimsIdentity(claims, Scheme.Name);
         var principal = new ClaimsPrincipal(identity);

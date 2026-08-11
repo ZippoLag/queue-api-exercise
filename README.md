@@ -13,8 +13,13 @@ Following instructions assume that you're running a terminal at the project's ro
 1. Execute `dotnet build`
 
 #### CMS API
+1. Set the required credentials environment variables (the API fails fast at startup without them):
+   - `AUTH_CMS_USERNAME` — the configured cms username, between 10 and 20 characters
+   - `AUTH_CMS_PASSWORD` — the configured cms password
 1. Execute `dotnet run --project src/CmsWebhook/CmsWebhook.Api`
-1. In a new terminal window, execute `curl -X GET -u  cms-webhook:0f6c3c5a-9b2e-4f7d-8a1c-2e5b9d7f3a61 http://127.0.0.1:5264/` and you should receive a `"Hello World!"` response.
+1. In a new terminal window, execute `curl -X GET -u  <username>:<password> http://127.0.0.1:5264/` and you should receive a `"Hello World!"` response.
+
+> **TLS requirement:** Basic authentication transmits credentials as base64, which is *not* encryption. Production deployments of `CmsWebhook.Api` MUST serve over TLS (HTTPS); the plain-http profile in `launchSettings.json` is for local development only.
 
 ## Development approach
 When given an exercise for an interview a common temptation is to over-engineer as a way to "flex" or display prowess, however I've chosen to tackle this as if it was a requirement coming from a client: taking the list of requirements at face value, not over-thinking abstractions and bolting-on external dependencies when they can be avoided.

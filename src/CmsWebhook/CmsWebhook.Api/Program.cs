@@ -6,16 +6,14 @@ var builder = WebApplication.CreateBuilder(args);
 
 builder.Services.AddBasicAuthentication();
 
-var cmsUsername = Environment.GetEnvironmentVariable(EnvironmentUserCredentialsProvider.UsernameEnvironmentVariable)
-    ?? throw new InvalidOperationException(
-        $"Missing required environment variable '{EnvironmentUserCredentialsProvider.UsernameEnvironmentVariable}'. "
-        + "Basic authentication credentials for the CMS API must be provided via environment variables.");
+var cmsCredentials = new EnvironmentUserCredentialsProvider();
+builder.Services.AddSingleton<IUserCredentialsProvider>(cmsCredentials);
 
 builder.Services.AddAuthorization(options =>
 {
     options.FallbackPolicy = new AuthorizationPolicyBuilder()
         .RequireAuthenticatedUser()
-        .RequireClaim(ClaimTypes.Name, cmsUsername)
+        .RequireClaim(ClaimTypes.Name, cmsCredentials.Username)
         .Build();
 });
 

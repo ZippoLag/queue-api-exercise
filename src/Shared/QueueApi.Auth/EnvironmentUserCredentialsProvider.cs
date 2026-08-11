@@ -24,16 +24,6 @@ public class EnvironmentUserCredentialsProvider : IUserCredentialsProvider
     public const string PasswordEnvironmentVariable = "AUTH_CMS_PASSWORD";
 
     /// <summary>
-    /// The username reserved by the architecture for the CMS system when it connects to the CMS API.
-    /// </summary>
-    /// <remarks>
-    /// Architecture note: <c>"cms"</c> is the only identity allowed to connect to the CMS API; the actual
-    /// credential used at runtime is configured through <see cref="UsernameEnvironmentVariable"/> and must
-    /// satisfy the <c>[10,20]</c> username length rule.
-    /// </remarks>
-    public const string ReservedCmsUsername = "cms";
-
-    /// <summary>
     /// The minimum allowed length of a configured username (architecture: <c>username [10,20]</c>).
     /// </summary>
     public const int MinUsernameLength = 10;
