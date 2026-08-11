@@ -6,12 +6,14 @@
 
 The Queue-API-Exercise system is meant to have 2 REST APIs available: a webhook for handling CMS entity-related events and one to handle Users and Admin Users requests.
 
-### Authentication
+### Authentication & Authorization
 Authentication is handlded in both APIs as Basic Auth (sername+password) in all incoming requests:
 - `username` [10,20] characters in length, no other constraints
 - `password` randomly generated GUID
 
 > Note: `"cms"` is a special username reserved to be used by the CMS when connecting to the CMS API, it's the **only** username enabled to connect to the CMS API, all others return 403, it is not valid for the Users API. `"admin"` is a special username reserved to be used by the system administrator in the Users API.
+
+> Note: no signature verification is provided in current version
 
 ### Persistence
 Persistence layer will be a single `PostgreSQL` DB, this may be broken down into 2 distinct data stores (one for incoming events, other for the current projected entity state). Caching is out of scope.
