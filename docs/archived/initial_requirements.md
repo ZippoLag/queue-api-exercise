@@ -7,7 +7,7 @@ Events include, but are not limited to:
 - Update → an existing entity was successfully changed.
 - Delete → an entity was removed or unpublished. Please note that unpublishing the entity does not remove it from the CMS, but disables it.
 
-Once an entity is updated (new fields, new values etc), a new version is set for the entity in the CMS. New data is only available upon publishing the event! This will send an event containing the latest entity version. An “unpublish” event will contain the entity fields, as well as the version that is being unpublished. 
+Once an entity is updated (new fields, new values etc), a new version is set for the entity in the CMS. New data is only available upon publishing the event! This will send an event containing the latest entity version. An "unpublish" event will contain the entity fields, as well as the version that is being unpublished. 
 
 Please keep in mind that an entity with version X can be modified → resulting in version X+1. Then, this gets unpublished. However, since there was no published version before that, you do no longer have the latest version in your database. Please also treat this corner case appropriately!
 
