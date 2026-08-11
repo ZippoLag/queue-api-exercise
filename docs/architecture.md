@@ -4,7 +4,7 @@
 
 ![alt text](system_overview.png)
 
-The Queue-API-Exercise system is meant to have 2 REST APIs available: a webhook for handling CMS entity-related events and one to handle Users and Admin Users requests.
+The Queue-API-Exercise system is meant to have 2 REST APIs available: a webhook for handling CMS entity-related events and one to handle Users and Admin Users requests. Knowing this project may grow, I choose to pay the cost of an initial scaffolding big-bang with boilerplate and creating the solution as a modular monolith, ready to be split whenever neccesary.
 
 ### Authentication & Authorization
 Authentication is handlded in both APIs as Basic Auth (sername+password) in all incoming requests:
@@ -21,8 +21,8 @@ Persistence layer will be a single `PostgreSQL` DB, this may be broken down into
 ### Logging
 TBD.
 
-## CMS API - v1
-The **CmsApi** is intended to be _webhooks_ so I'm assuming we need a quick response to the external system that's _notifying_ us of already-happened events. All **CmsEvent**s received will be stored in a `cms_event_log` table.
+## CMS Webhook API - v1
+The **CmsWebhook** is intended to be a _webhooks API_ so it needs a quick response to the external system that's _notifying_ us of already-happened events. All **CmsEvent**s received will be stored in a `cms_event_log` table.
 
 > For the current **v1**, validations will be minimal. Whether **v2** will incorporate more complex validations in these endpoints or push this logic to async workers is TBD.
 

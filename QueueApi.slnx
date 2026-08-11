@@ -1,0 +1,25 @@
+<Solution>
+  <Configurations>
+    <Platform Name="Any CPU" />
+    <Platform Name="x64" />
+    <Platform Name="x86" />
+  </Configurations>
+  <Folder Name="/src/" />
+  <Folder Name="/src/CmsWebhook/">
+    <Project Path="src/CmsWebhook/CmsWebhook.Api/CmsWebhook.Api.csproj" />
+    <Project Path="src/CmsWebhook/CmsWebhook.Application/CmsWebhook.Application.csproj" />
+    <Project Path="src/CmsWebhook/CmsWebhook.Domain/CmsWebhook.Domain.csproj" />
+  </Folder>
+  <Folder Name="/src/Shared/">
+    <Project Path="src/Shared/QueueApi.Auth/QueueApi.Auth.csproj" />
+  </Folder>
+  <Folder Name="/tests/" />
+  <Folder Name="/tests/CmsWebhook/">
+    <Project Path="tests/CmsWebhook/CmsWebhook.Api.Tests/CmsWebhook.Api.Tests.csproj" />
+    <Project Path="tests/CmsWebhook/CmsWebhook.Application.Tests/CmsWebhook.Application.Tests.csproj" />
+    <Project Path="tests/CmsWebhook/CmsWebhook.Domain.Tests/CmsWebhook.Domain.Tests.csproj" />
+  </Folder>
+  <Folder Name="/tests/Shared/">
+    <Project Path="tests/Shared/QueueApi.Auth.Tests/QueueApi.Auth.Tests.csproj" />
+  </Folder>
+</Solution>
