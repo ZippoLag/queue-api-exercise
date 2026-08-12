@@ -2,17 +2,16 @@ using System.Net;
 using System.Net.Http.Headers;
 using System.Text;
 using FluentAssertions;
+using Microsoft.EntityFrameworkCore;
 using QueueApi.Auth;
 
 namespace CmsWebhook.Api.Tests;
 
 /// <summary>
-/// Integration tests for Basic authentication on the CMS Webhook API.
+/// Integration tests for Basic authentication on the CMS Webhook API against a seeded SQLite store.
 /// </summary>
 public class CmsWebhookApiAuthTests
 {
-    private const string CmsUsername = "cms-webhook";
-    private const string CmsPassword = "aaaaaaaa-aaaa-aaaa-aaaa-aaaaaaaaaaaa";
     private const string OtherUsername = "other-client";
     private const string OtherPassword = "bbbbbbbb-bbbb-bbbb-bbbb-bbbbbbbbbbbb";
 
@@ -26,7 +25,6 @@ public class CmsWebhookApiAuthTests
     [Fact]
     public async Task GetRoot_WithoutAuthorizationHeader_ReturnsUnauthorized()
     {
-        using var environment = SetValidCmsEnvironment();
         using var factory = new CmsWebhookApiFactory();
         using var client = factory.CreateClient();
 
@@ -48,7 +46,6 @@ public class CmsWebhookApiAuthTests
     [Fact]
     public async Task GetRoot_WithBearerScheme_ReturnsUnauthorized()
     {
-        using var environment = SetValidCmsEnvironment();
         using var factory = new CmsWebhookApiFactory();
         using var client = factory.CreateClient();
         client.DefaultRequestHeaders.Authorization = new AuthenticationHeaderValue("Bearer", "some-token");
@@ -69,7 +66,6 @@ public class CmsWebhookApiAuthTests
     [Fact]
     public async Task GetRoot_WithMalformedBase64_ReturnsUnauthorized()
     {
-        using var environment = SetValidCmsEnvironment();
         using var factory = new CmsWebhookApiFactory();
         using var client = factory.CreateClient();
         client.DefaultRequestHeaders.TryAddWithoutValidation("Authorization", "Basic !!!not-base64!!!");
@@ -85,15 +81,14 @@ public class CmsWebhookApiAuthTests
     /// </summary>
     /// <remarks>
     /// Source business rule: spec "All endpoints require authentication", scenario
-    /// "Request with credentials of an unknown user".
+    /// "Request with credentials of an unknown user"; the seeded store only contains the cms user.
     /// </remarks>
     [Fact]
     public async Task GetRoot_WithUnknownUsername_ReturnsUnauthorized()
     {
-        using var environment = SetValidCmsEnvironment();
         using var factory = new CmsWebhookApiFactory();
         using var client = factory.CreateClient();
-        client.DefaultRequestHeaders.Authorization = Basic("no-such-user", CmsPassword);
+        client.DefaultRequestHeaders.Authorization = Basic("no-such-user", CmsWebhookApiFactory.CmsPassword);
 
         var response = await client.GetAsync("/");
 
@@ -106,15 +101,15 @@ public class CmsWebhookApiAuthTests
     /// </summary>
     /// <remarks>
     /// Source business rule: spec "All endpoints require authentication", scenario
-    /// "Request with a wrong password for a known user".
+    /// "Request with a wrong password for a known user"; the password is verified against the
+    /// stored PBKDF2 hash (spec "Passwords are verified against stored hashes").
     /// </remarks>
     [Fact]
     public async Task GetRoot_WithWrongPassword_ReturnsUnauthorized()
     {
-        using var environment = SetValidCmsEnvironment();
         using var factory = new CmsWebhookApiFactory();
         using var client = factory.CreateClient();
-        client.DefaultRequestHeaders.Authorization = Basic(CmsUsername, "wrong-password");
+        client.DefaultRequestHeaders.Authorization = Basic(CmsWebhookApiFactory.CmsUsername, "wrong-password");
 
         var response = await client.GetAsync("/");
 
@@ -127,15 +122,15 @@ public class CmsWebhookApiAuthTests
     /// </summary>
     /// <remarks>
     /// Source business rule: spec "Only the cms user is authorized", scenario
-    /// "Valid credentials for the cms user".
+    /// "Valid credentials for the cms user"; spec "Credentials are sourced from the credential store",
+    /// scenario "Credential store is initialized".
     /// </remarks>
     [Fact]
     public async Task GetRoot_WithValidCmsCredentials_ReturnsOk()
     {
-        using var environment = SetValidCmsEnvironment();
         using var factory = new CmsWebhookApiFactory();
         using var client = factory.CreateClient();
-        client.DefaultRequestHeaders.Authorization = Basic(CmsUsername, CmsPassword);
+        client.DefaultRequestHeaders.Authorization = Basic(CmsWebhookApiFactory.CmsUsername, CmsWebhookApiFactory.CmsPassword);
 
         var response = await client.GetAsync("/");
 
@@ -153,11 +148,10 @@ public class CmsWebhookApiAuthTests
     [Fact]
     public async Task GetRoot_WithValidNonCmsCredentials_ReturnsForbidden()
     {
-        using var environment = SetValidCmsEnvironment();
         var provider = new InMemoryUserCredentialsProvider(
-            (CmsUsername, CmsPassword),
+            (CmsWebhookApiFactory.CmsUsername, CmsWebhookApiFactory.CmsPassword),
             (OtherUsername, OtherPassword));
-        using var factory = new CmsWebhookApiFactory(provider);
+        using var factory = new CmsWebhookApiFactory(credentialsProviderOverride: provider);
         using var client = factory.CreateClient();
         client.DefaultRequestHeaders.Authorization = Basic(OtherUsername, OtherPassword);
 
@@ -168,43 +162,83 @@ public class CmsWebhookApiAuthTests
     }
 
     /// <summary>
-    /// Verifies the host fails to start when the required environment variables are not set.
+    /// Verifies the host fails to start when the credential store has not been initialized with the schema.
     /// </summary>
     /// <remarks>
-    /// Source business rule: spec "Credentials are sourced from environment variables", scenario
-    /// "Environment variables are missing".
+    /// Source business rule: spec "Credentials are sourced from the credential store", scenario
+    /// "Credential store is not initialized"; the provider wraps the missing-table failure with setup guidance.
     /// </remarks>
     [Fact]
-    public void CreateClient_WhenCredentialsAreMissing_ThrowsAtStartup()
+    public void CreateClient_WhenStoreIsNotInitialized_ThrowsWithGuidance()
     {
-        using var environment = new EnvironmentVariableScope();
-        environment.Set(EnvironmentUserCredentialsProvider.UsernameEnvironmentVariable, null);
-        environment.Set(EnvironmentUserCredentialsProvider.PasswordEnvironmentVariable, null);
-        using var factory = new CmsWebhookApiFactory();
+        var emptyDatabasePath = Path.GetTempFileName();
+        try
+        {
+            using var factory = new CmsWebhookApiFactory(authDbConnectionString: $"Data Source={emptyDatabasePath}");
 
-        var exception = CaptureStartupFailure(factory);
+            var exception = CaptureStartupFailure(factory);
 
-        exception.Message.Should().Contain(EnvironmentUserCredentialsProvider.UsernameEnvironmentVariable);
+            exception.Message.Should().Contain("scripts/init-db.sh");
+        }
+        finally
+        {
+            File.Delete(emptyDatabasePath);
+        }
     }
 
     /// <summary>
-    /// Verifies the host fails to start when the configured username violates the <c>[10,20]</c> length rule.
+    /// Verifies the host fails to start when the store is initialized but lacks the cms user.
     /// </summary>
     /// <remarks>
-    /// Source business rule: spec "Configured credential format", scenario
-    /// "Invalid configured username length"; architecture: <c>username [10,20]</c>.
+    /// Source business rule: spec "Credentials are sourced from the credential store", scenario
+    /// "Credential store is not initialized"; an initialized store without the cms user is equally unusable.
+    /// </remarks>
+    [Fact]
+    public void CreateClient_WhenStoreLacksCmsUser_ThrowsWithGuidance()
+    {
+        var databasePath = CreateInitializedStoreWithoutUsers();
+        try
+        {
+            using var factory = new CmsWebhookApiFactory(authDbConnectionString: $"Data Source={databasePath}");
+
+            var exception = CaptureStartupFailure(factory);
+
+            exception.Message.Should().Contain("does not contain the cms user");
+            exception.Message.Should().Contain("scripts/init-db.sh");
+        }
+        finally
+        {
+            File.Delete(databasePath);
+        }
+    }
+
+    /// <summary>
+    /// Verifies the host fails to start when the configured cms username violates the <c>[10,20]</c> length rule.
+    /// </summary>
+    /// <remarks>
+    /// Source business rule: spec "Configured credential format", scenario "Invalid configured username
+    /// length"; architecture: <c>username [10,20]</c> characters. The invalid username is injected via the
+    /// <c>Auth__CmsUsername</c> configuration environment variable: process environment variables are part of
+    /// the default configuration chain read during the host build, so the value is visible to the top-level
+    /// <c>Program.cs</c> config reads (design decision D2 of change remove-legacy-auth-env).
     /// </remarks>
     [Fact]
     public void CreateClient_WhenConfiguredUsernameLengthIsInvalid_ThrowsAtStartup()
     {
-        using var environment = new EnvironmentVariableScope();
-        environment.Set(EnvironmentUserCredentialsProvider.UsernameEnvironmentVariable, "123456789");
-        environment.Set(EnvironmentUserCredentialsProvider.PasswordEnvironmentVariable, CmsPassword);
-        using var factory = new CmsWebhookApiFactory();
+        var previousValue = Environment.GetEnvironmentVariable("Auth__CmsUsername");
+        Environment.SetEnvironmentVariable("Auth__CmsUsername", "123456789");
+        try
+        {
+            using var factory = new CmsWebhookApiFactory();
 
-        var exception = CaptureStartupFailure(factory);
+            var exception = CaptureStartupFailure(factory);
 
-        exception.Message.Should().Contain("between 10 and 20");
+            exception.Message.Should().Contain("between 10 and 20");
+        }
+        finally
+        {
+            Environment.SetEnvironmentVariable("Auth__CmsUsername", previousValue);
+        }
     }
 
     private static InvalidOperationException CaptureStartupFailure(CmsWebhookApiFactory factory)
@@ -216,33 +250,17 @@ public class CmsWebhookApiAuthTests
         return invalidOperation!;
     }
 
-    private static EnvironmentVariableScope SetValidCmsEnvironment()
+    private static string CreateInitializedStoreWithoutUsers()
     {
-        var scope = new EnvironmentVariableScope();
-        scope.Set(EnvironmentUserCredentialsProvider.UsernameEnvironmentVariable, CmsUsername);
-        scope.Set(EnvironmentUserCredentialsProvider.PasswordEnvironmentVariable, CmsPassword);
-        return scope;
+        var databasePath = Path.Combine(Path.GetTempPath(), $"queue-api-auth-tests-empty-{Guid.NewGuid():N}.db");
+        var options = new DbContextOptionsBuilder<AuthDbContext>()
+            .UseSqlite($"Data Source={databasePath}")
+            .Options;
+        using var context = new AuthDbContext(options);
+        context.Database.EnsureCreated();
+        return databasePath;
     }
 
     private static AuthenticationHeaderValue Basic(string username, string password)
         => new("Basic", Convert.ToBase64String(Encoding.UTF8.GetBytes($"{username}:{password}")));
-
-    private sealed class EnvironmentVariableScope : IDisposable
-    {
-        private readonly Dictionary<string, string?> _previousValues = new();
-
-        public void Set(string name, string? value)
-        {
-            _previousValues[name] = Environment.GetEnvironmentVariable(name);
-            Environment.SetEnvironmentVariable(name, value);
-        }
-
-        public void Dispose()
-        {
-            foreach (var (name, value) in _previousValues)
-            {
-                Environment.SetEnvironmentVariable(name, value);
-            }
-        }
-    }
 }

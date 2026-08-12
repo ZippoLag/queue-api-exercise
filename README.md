@@ -13,13 +13,20 @@ Following instructions assume that you're running a terminal at the project's ro
 1. Execute `dotnet build`
 
 #### CMS API
-1. Set the required credentials environment variables (the API fails fast at startup without them):
-   - `AUTH_CMS_USERNAME` — the configured cms username, between 10 and 20 characters
-   - `AUTH_CMS_PASSWORD` — the configured cms password
-1. Execute `dotnet run --project src/CmsWebhook/CmsWebhook.Api`
-1. In a new terminal window, execute `curl -X GET -u  <username>:<password> http://127.0.0.1:5264/` and you should receive a `"Hello World!"` response.
+
+##### Local environment setup
+1. Initialize the credential store (one time per checkout):
+   `./scripts/init-db.sh` — creates `db/queue-auth.db` with the `cms-webhook` user.
+   - Optional arguments: `./scripts/init-db.sh [username] [password]`
+   - Without a password, it uses the local-development default below. The script is idempotent; re-running it is safe.
+
+> **Credentials & configuration:** credentials live in the SQLite credential store at `db/queue-auth.db` (gitignored, provisioned by `scripts/init-db.sh`), not in environment variables. The store location is configurable via `ConnectionStrings:AuthDb` (e.g. the `ConnectionStrings__AuthDb` environment variable), and the reserved cms username via `Auth:CmsUsername` (e.g. the `Auth__CmsUsername` environment variable). To change a seeded user's password, delete `db/queue-auth.db` and re-run the script (re-running with a different password leaves the existing user unchanged). The local-development default password used by `scripts/init-db.sh` is `0f6c3c5a-9b2e-4f7d-8a1c-2e5b9d7f3a61` — DO NOT use it outside local development.
 
 > **TLS requirement:** Basic authentication transmits credentials as base64, which is *not* encryption. Production deployments of `CmsWebhook.Api` MUST serve over TLS (HTTPS); the plain-http profile in `launchSettings.json` is for local development only.
+
+##### Execution
+1. Execute `dotnet run --project src/CmsWebhook/CmsWebhook.Api` (the API fails fast at startup if the store is missing or not initialized).
+1. In a new terminal window, execute `curl -X GET -u  <username>:<password> http://127.0.0.1:5264/` and you should receive a `"Hello World!"` response.
 
 ## Development approach
 When given an exercise for an interview a common temptation is to over-engineer as a way to "flex" or display prowess, however I've chosen to tackle this as if it was a requirement coming from a client: taking the list of requirements at face value, not over-thinking abstractions and bolting-on external dependencies when they can be avoided.
@@ -40,9 +47,10 @@ source ~/.bashrc
 pnpm runtime set node lts -g
 pnpm install -g freebuff
 pnpm install -g @fission-ai/openspec@latest
+[ -d openspec/ ] || openspec init # If the openspec folder doesn't exist (ie, you're starting a new project, you must initialize first)
 ```
 
-This tool correctly picks up `AGENTS.md`, in which I add details regarding project structure, coding style, etc.
+>  Note: I've given the above sequence the flexibility to be ran in a new project, should you want to copy them into your own set-up.
 
 ## Architecture / Plan
 In tandem of the KISS principle, it would be an oversight in my years of experience to not treat this project as if it had plans to grow in the future, meaning I will aim to keep a clear separation of boundaries and domains within a Modular Monolith, following a Ports+Adapters and Clean architecture. Then, given the fact that from the start there are requirements for event handling and distinct flows (CMS VS Users), following an Event-Driven architecture (not Event-Sourcing for now) with CQRS also in place feels natural. Observability via logging and possibly OTEL will be approached as soon as justified.

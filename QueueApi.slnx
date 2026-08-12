@@ -22,4 +22,8 @@
   <Folder Name="/tests/Shared/">
     <Project Path="tests/Shared/QueueApi.Auth.Tests/QueueApi.Auth.Tests.csproj" />
   </Folder>
+  <Folder Name="/tools/">
+    <Project Path="tools/AuthDbInit/AuthDbInit.csproj" />
+    <Project Path="tools/AuthDbInit.Tests/AuthDbInit.Tests.csproj" />
+  </Folder>
 </Solution>

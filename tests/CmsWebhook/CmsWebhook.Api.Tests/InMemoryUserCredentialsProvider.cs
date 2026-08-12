@@ -7,7 +7,7 @@ namespace CmsWebhook.Api.Tests;
 /// </summary>
 /// <remarks>
 /// Lets tests prove the 403 path with a second valid user (spec "Only the cms user is authorized",
-/// scenario "Valid credentials for a non-cms user") without touching the environment.
+/// scenario "Valid credentials for a non-cms user") without touching the database.
 /// </remarks>
 public class InMemoryUserCredentialsProvider : IUserCredentialsProvider
 {
@@ -23,6 +23,11 @@ public class InMemoryUserCredentialsProvider : IUserCredentialsProvider
     }
 
     /// <inheritdoc/>
-    public string? GetPassword(string username)
-        => _passwords.TryGetValue(username, out var password) ? password : null;
+    public Task<bool> VerifyCredentialsAsync(string username, string password)
+        => Task.FromResult(_passwords.TryGetValue(username, out var expectedPassword)
+            && string.Equals(expectedPassword, password, StringComparison.Ordinal));
+
+    /// <inheritdoc/>
+    public Task<bool> UserExistsAsync(string username)
+        => Task.FromResult(_passwords.ContainsKey(username));
 }

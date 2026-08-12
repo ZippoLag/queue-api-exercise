@@ -112,7 +112,8 @@ public class BasicAuthenticationHandlerTests
     /// </summary>
     /// <remarks>
     /// Source business rule: spec "All endpoints require authentication", scenario
-    /// "Request with credentials of an unknown user".
+    /// "Request with credentials of an unknown user"; the provider reports an unknown user
+    /// as a failed verification (design decision D3).
     /// </remarks>
     [Fact]
     public async Task AuthenticateAsync_WithUnknownUsername_ReturnsFail()
@@ -121,7 +122,8 @@ public class BasicAuthenticationHandlerTests
         context.Request.Headers.Authorization = Basic("unknown-user", CmsPassword);
 
         var provider = new Mock<IUserCredentialsProvider>();
-        provider.Setup(p => p.GetPassword(It.IsAny<string>())).Returns((string?)null);
+        provider.Setup(p => p.VerifyCredentialsAsync(It.IsAny<string>(), It.IsAny<string>()))
+            .ReturnsAsync(false);
 
         var handler = CreateHandler(provider.Object);
         await handler.InitializeAsync(Scheme, context);
@@ -136,7 +138,8 @@ public class BasicAuthenticationHandlerTests
     /// </summary>
     /// <remarks>
     /// Source business rule: spec "All endpoints require authentication", scenario
-    /// "Request with a wrong password for a known user".
+    /// "Request with a wrong password for a known user"; the provider reports a wrong password
+    /// as a failed verification, indistinguishable from an unknown user (design decision D3).
     /// </remarks>
     [Fact]
     public async Task AuthenticateAsync_WithWrongPassword_ReturnsFail()
@@ -145,7 +148,8 @@ public class BasicAuthenticationHandlerTests
         context.Request.Headers.Authorization = Basic(CmsUsername, "wrong-password");
 
         var provider = new Mock<IUserCredentialsProvider>();
-        provider.Setup(p => p.GetPassword(CmsUsername)).Returns(CmsPassword);
+        provider.Setup(p => p.VerifyCredentialsAsync(CmsUsername, "wrong-password"))
+            .ReturnsAsync(false);
 
         var handler = CreateHandler(provider.Object);
         await handler.InitializeAsync(Scheme, context);
@@ -169,7 +173,8 @@ public class BasicAuthenticationHandlerTests
         context.Request.Headers.Authorization = "basic " + Convert.ToBase64String(Encoding.UTF8.GetBytes($"{CmsUsername}:{CmsPassword}"));
 
         var provider = new Mock<IUserCredentialsProvider>();
-        provider.Setup(p => p.GetPassword(CmsUsername)).Returns(CmsPassword);
+        provider.Setup(p => p.VerifyCredentialsAsync(CmsUsername, CmsPassword))
+            .ReturnsAsync(true);
 
         var handler = CreateHandler(provider.Object);
         await handler.InitializeAsync(Scheme, context);
@@ -194,7 +199,8 @@ public class BasicAuthenticationHandlerTests
         context.Request.Headers.Authorization = Basic(CmsUsername, CmsPassword);
 
         var provider = new Mock<IUserCredentialsProvider>();
-        provider.Setup(p => p.GetPassword(CmsUsername)).Returns(CmsPassword);
+        provider.Setup(p => p.VerifyCredentialsAsync(CmsUsername, CmsPassword))
+            .ReturnsAsync(true);
 
         var handler = CreateHandler(provider.Object);
         await handler.InitializeAsync(Scheme, context);

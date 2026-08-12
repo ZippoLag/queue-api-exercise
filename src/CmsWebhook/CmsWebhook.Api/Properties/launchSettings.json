@@ -7,9 +7,7 @@
       "launchBrowser": true,
       "applicationUrl": "http://localhost:5264",
       "environmentVariables": {
-        "ASPNETCORE_ENVIRONMENT": "Development",
-        "AUTH_CMS_USERNAME": "cms-webhook",
-        "AUTH_CMS_PASSWORD": "0f6c3c5a-9b2e-4f7d-8a1c-2e5b9d7f3a61"
+        "ASPNETCORE_ENVIRONMENT": "Development"
       }
     },
     "https": {
@@ -18,9 +16,7 @@
       "launchBrowser": true,
       "applicationUrl": "https://localhost:7123;http://localhost:5264",
       "environmentVariables": {
-        "ASPNETCORE_ENVIRONMENT": "Development",
-        "AUTH_CMS_USERNAME": "cms-webhook",
-        "AUTH_CMS_PASSWORD": "0f6c3c5a-9b2e-4f7d-8a1c-2e5b9d7f3a61"
+        "ASPNETCORE_ENVIRONMENT": "Development"
       }
     }
   }
