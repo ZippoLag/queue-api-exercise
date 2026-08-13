@@ -6,22 +6,32 @@
 
 The Queue-API-Exercise system is meant to have 2 REST APIs available: a webhook for handling CMS entity-related events and one to handle Users and Admin Users requests. Knowing this project may grow, I choose to pay the cost of an initial scaffolding big-bang with boilerplate and creating the solution as a modular monolith, ready to be split whenever neccesary.
 
-### Authentication & Authorization
-Authentication is handlded in both APIs as Basic Auth (sername+password) in all incoming requests:
-- `username` [10,20] characters in length, no other constraints
-- `password` randomly generated GUID
+**Current implementation status:** only the **CmsWebhook API** exists and is consuming the shared auth capability; the **User API** and the CMS event endpoints are still planned (see the roadmapped sections below).
 
-> Note: `"cms-webhook"` is a special username reserved to be used by the CMS when connecting to the CMS API, it's the **only** username enabled to connect to the CMS API, all others return 403, it is not valid for the Users API. `"administrator"` is a special username reserved to be used by the system administrator in the Users API.
+### Authentication & Authorization
+Authentication is handled in the CmsWebhook API as Basic Auth (`username`+`password`) in all incoming requests. The mechanism is implemented once in the shared `QueueApi.Auth` library (`src/Shared/QueueApi.Auth`) so the future User API reuses the same scheme and store.
+
+- `username` [10,20] characters in length, no other constraints. The reserved cms username is read from the `Auth:CmsUsername` configuration value (default `cms-webhook`) and the application fails to start if the configured value violates the length rule.
+- Credentials are **not** hardcoded: they live in the shared SQLite credential store and are verified against a stored **PBKDF2 hash** (per-user random salt). Plaintext passwords are never persisted. The store is provisioned idempotently by `scripts/init-db.sh` (username and password passed as positional arguments); the API fails to start with a descriptive error if the store is unreachable or has not been initialized with the cms user.
+
+> Note: `"cms-webhook"` is a special username reserved to be used by the CMS when connecting to the CMS API. It is the **only** username authorized to access the CMS API — valid credentials of any other user are rejected with `403`, all other failures with `401`. It is not valid for the Users API. `"administrator"` is a special username reserved to be used by the system administrator in the future Users API.
 
 > Note: no signature verification is provided in current version
 
 ### Persistence
-Persistence layer will be a single `sqlite` file database, this may be broken down into several data stores when a real database engine becomes neccesary. Caching is out of scope.
+Persistence is a single `sqlite` file database, which may be broken down into several data stores when a real database engine becomes neccesary.
+
+- **Implemented:** the shared credential store (`db/queue-auth.db`, `Users` table) holding username + PBKDF2 password hash per user. Its location is configurable via the `ConnectionStrings:AuthDb` configuration value (e.g. through an environment variable), so it can point at a different store without code changes.
+- **Planned:** the `cms_event_log` table for CMS events (see CMS Webhook API below).
+
+Caching is out of scope.
 
 ### Logging
-TBD.
+Leveled console output (`Console` with explicit levels) is used for the small amount of logging present; richer logging (e.g. Serilog) remains TBD.
 
 ## CMS Webhook API - v1
+> **Planned:** as of the current implementation the CmsWebhook API exposes only authentication, startup validation and a placeholder `GET /` route. The `/cms/events` endpoint, event types, validations and event processing below describe the **planned** v1 behavior.
+
 The **CmsWebhook** is intended to be a _webhooks API_ so it needs a quick response to the external system that's _notifying_ us of already-happened events. All **CmsEvent**s received will be stored in a `cms_event_log` table.
 
 > For the current **v1**, validations will be minimal. Whether **v2** will incorporate more complex validations in these endpoints or push this logic to async workers is TBD.
@@ -70,6 +80,8 @@ When **CmsEvent**s are processed, a number of scenarios may arise depending on t
 > Note: `payload` is assumed to always be present, as stated in the request definition.
 
 ## User API
+> **Planned:** not yet implemented; no User API project exists in the solution yet. The endpoints below describe the intended design.
+
 The **UserAPI** is meant to serve clients interested in knowing their entities' data.
 
 ### `/entities` GET
