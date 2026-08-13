@@ -9,6 +9,7 @@
     <Project Path="src/CmsWebhook/CmsWebhook.Api/CmsWebhook.Api.csproj" />
     <Project Path="src/CmsWebhook/CmsWebhook.Application/CmsWebhook.Application.csproj" />
     <Project Path="src/CmsWebhook/CmsWebhook.Domain/CmsWebhook.Domain.csproj" />
+    <Project Path="src/CmsWebhook/CmsWebhook.Infrastructure/CmsWebhook.Infrastructure.csproj" />
   </Folder>
   <Folder Name="/src/Shared/">
     <Project Path="src/Shared/QueueApi.Auth/QueueApi.Auth.csproj" />
@@ -18,6 +19,7 @@
     <Project Path="tests/CmsWebhook/CmsWebhook.Api.Tests/CmsWebhook.Api.Tests.csproj" />
     <Project Path="tests/CmsWebhook/CmsWebhook.Application.Tests/CmsWebhook.Application.Tests.csproj" />
     <Project Path="tests/CmsWebhook/CmsWebhook.Domain.Tests/CmsWebhook.Domain.Tests.csproj" />
+    <Project Path="tests/CmsWebhook/CmsWebhook.Infrastructure.Tests/CmsWebhook.Infrastructure.Tests.csproj" />
   </Folder>
   <Folder Name="/tests/Shared/">
     <Project Path="tests/Shared/QueueApi.Auth.Tests/QueueApi.Auth.Tests.csproj" />

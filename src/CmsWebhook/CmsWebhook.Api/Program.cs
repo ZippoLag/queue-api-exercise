@@ -1,14 +1,22 @@
+using System.Data.Common;
+using System.Security.Claims;
+using System.Text.Json;
+using CmsWebhook.Application;
+using CmsWebhook.Domain;
+using CmsWebhook.Infrastructure;
 using Microsoft.AspNetCore.Authorization;
 using Microsoft.Data.Sqlite;
 using QueueApi.Auth;
-using System.Security.Claims;
 
 var builder = WebApplication.CreateBuilder(args);
 
-var authDbConnectionString = ResolveConnectionString(builder.Configuration, builder.Environment.ContentRootPath);
+var authDbConnectionString = ResolveConnectionString(builder.Configuration, builder.Environment.ContentRootPath, "AuthDb");
+var cmsDbConnectionString = ResolveConnectionString(builder.Configuration, builder.Environment.ContentRootPath, "CmsDb");
 var cmsUsername = ResolveCmsUsername(builder.Configuration);
 
 builder.Services.AddBasicAuthentication(authDbConnectionString);
+builder.Services.AddCmsWebhookInfrastructure(cmsDbConnectionString);
+builder.Services.AddScoped<IIngestCmsEventsCommandHandler, IngestCmsEventsCommandHandler>();
 
 builder.Services.AddAuthorization(options =>
 {
@@ -20,8 +28,8 @@ builder.Services.AddAuthorization(options =>
 
 var app = builder.Build();
 
-// Fail fast: the credential store must be reachable and initialized with the cms user, otherwise
-// every request would 401 at runtime. This surfaces setup problems as a descriptive startup error.
+// Fail fast: both stores must be reachable, otherwise every request (or the outbox worker) would fail at
+// runtime. Surfaces setup problems as descriptive startup errors.
 using (var scope = app.Services.CreateScope())
 {
     var credentialsProvider = scope.ServiceProvider.GetRequiredService<IUserCredentialsProvider>();
@@ -31,12 +39,61 @@ using (var scope = app.Services.CreateScope())
             $"The credential store does not contain the cms user '{cmsUsername}'. "
             + "Run 'scripts/init-db.sh' from the repository root to initialize it.");
     }
+
+    var cmsDbContext = scope.ServiceProvider.GetRequiredService<CmsDbContext>();
+    await EnsureCmsDatabaseAsync(cmsDbContext, cmsDbConnectionString);
 }
 
 app.UseAuthentication();
 app.UseAuthorization();
 
 app.MapGet("/", () => "Hello World!");
+
+app.MapPost("/cms/events", async (
+    HttpRequest request,
+    IIngestCmsEventsCommandHandler handler,
+    CancellationToken cancellationToken) =>
+{
+    JsonDocument? document = null;
+    try
+    {
+        document = await JsonDocument.ParseAsync(request.Body, cancellationToken: cancellationToken);
+    }
+    catch (JsonException)
+    {
+        return Results.BadRequest();
+    }
+
+    // The document must stay alive while requests are deserialized and validated: CmsRequest payloads
+    // are JsonElements referencing its memory, and the validator reads them via GetRawText().
+    using (document)
+    {
+        IReadOnlyList<CmsRequest?>? requests;
+        try
+        {
+            var root = document.RootElement;
+            requests = root.ValueKind switch
+            {
+                JsonValueKind.Object => new[] { DeserializeCmsRequest(root) },
+                JsonValueKind.Array => DeserializeCmsRequestBatch(root),
+                _ => null,
+            };
+        }
+        catch (JsonException)
+        {
+            // Unparseable or wrongly-typed fields (e.g. "type": 5) are client errors, not server errors.
+            return Results.BadRequest();
+        }
+
+        if (requests is null || requests.Any(item => item is null))
+        {
+            return Results.BadRequest();
+        }
+
+        var result = await handler.HandleAsync(requests.Cast<CmsRequest>().ToList(), cancellationToken);
+        return result.Success ? Results.StatusCode(StatusCodes.Status201Created) : Results.BadRequest();
+    }
+});
 
 app.Run();
 
@@ -51,26 +108,31 @@ app.Run();
 public partial class Program
 {
     /// <summary>
-    /// Resolves the credential store connection string, turning relative SQLite data sources into
-    /// repository-root paths so the documented "run from the repo root" flow works from any working directory.
+    /// Resolves a connection string, turning relative SQLite data sources into repository-root paths so
+    /// the documented "run from the repo root" flow works from any working directory.
     /// </summary>
     /// <remarks>
-    /// Spec "Credential store location is configurable": a single configuration value is the knob for
-    /// pointing at another store (or, later, another engine via an EF Core provider swap — design decision D5).
+    /// Serves both stores: the shared credential store (<c>ConnectionStrings:AuthDb</c>) and the dedicated
+    /// CMS database (<c>ConnectionStrings:CmsDb</c>, design D3). A single configuration value per store is
+    /// the knob for pointing at another location (or, later, another engine via an EF Core provider swap).
     /// Absolute and in-memory data sources are returned unchanged.
     /// </remarks>
     /// <param name="configuration">The application configuration.</param>
     /// <param name="contentRootPath">The host content root, used to locate the repository root.</param>
+    /// <param name="connectionStringName">The <c>ConnectionStrings</c> key to read, e.g. <c>AuthDb</c> or <c>CmsDb</c>.</param>
     /// <returns>The connection string, with relative data sources resolved against the repository root.</returns>
     /// <exception cref="InvalidOperationException">
-    /// <c>ConnectionStrings:AuthDb</c> is not configured.
+    /// <c>ConnectionStrings:{connectionStringName}</c> is not configured.
     /// </exception>
-    private static string ResolveConnectionString(IConfiguration configuration, string contentRootPath)
+    private static string ResolveConnectionString(
+        IConfiguration configuration,
+        string contentRootPath,
+        string connectionStringName)
     {
-        var connectionString = configuration.GetConnectionString("AuthDb")
+        var connectionString = configuration.GetConnectionString(connectionStringName)
             ?? throw new InvalidOperationException(
-                "Missing required configuration 'ConnectionStrings:AuthDb'. "
-                + "The credential store connection string must be configured.");
+                $"Missing required configuration 'ConnectionStrings:{connectionStringName}'. "
+                + "The connection string must be configured.");
 
         var builder = new SqliteConnectionStringBuilder(connectionString);
         if (string.IsNullOrWhiteSpace(builder.DataSource)
@@ -87,8 +149,8 @@ public partial class Program
             // against the process working directory, so surface the assumption instead of failing silently.
             Console.Error.WriteLine(
                 "[Warning] Could not locate the repository root (QueueApi.slnx) to resolve the relative "
-                + $"credential store path '{builder.DataSource}'; it will be resolved against the working "
-                + "directory. Configure an absolute path in ConnectionStrings:AuthDb for non-repo deployments.");
+                + $"database path '{builder.DataSource}'; it will be resolved against the working "
+                + "directory. Configure an absolute path for non-repo deployments.");
             return connectionString;
         }
 
@@ -122,9 +184,9 @@ public partial class Program
     /// <c>[10,20]</c> length rule.
     /// </summary>
     /// <remarks>
-    /// The username no longer comes from the credential provider (design decision D4); it identifies which
-    /// user in the store the authorization policy allows. It is read exclusively from <c>Auth:CmsUsername</c>
-    /// (default <c>cms-webhook</c>), the single source of truth for the reserved username.
+    /// The username identifies which user in the store the authorization policy allows. It is read
+    /// exclusively from <c>Auth:CmsUsername</c> (default <c>cms-webhook</c>), the single source of truth
+    /// for the reserved username.
     /// </remarks>
     /// <param name="configuration">The application configuration.</param>
     /// <returns>The resolved cms username.</returns>
@@ -144,4 +206,55 @@ public partial class Program
 
         return username;
     }
+
+    /// <summary>
+    /// Ensures the CMS database exists with its schema, failing fast with descriptive guidance otherwise.
+    /// </summary>
+    /// <remarks>
+    /// Design D8: no migrations tooling is a standing convention, so the schema is created at startup via
+    /// <c>EnsureCreated()</c>; there is nothing to seed in the CMS database. WAL journal mode is enabled so
+    /// the endpoint's writes and the outbox worker's writes coexist on SQLite's single-writer file (the
+    /// busy timeout comes from the connection string, design D3).
+    /// </remarks>
+    /// <param name="cmsDbContext">The CMS database context.</param>
+    /// <param name="cmsDbConnectionString">The resolved CMS database connection string.</param>
+    /// <exception cref="InvalidOperationException">
+    /// The CMS database could not be accessed or created.
+    /// </exception>
+    private static async Task EnsureCmsDatabaseAsync(CmsDbContext cmsDbContext, string cmsDbConnectionString)
+    {
+        try
+        {
+            await cmsDbContext.Database.EnsureCreatedAsync();
+        }
+        catch (DbException exception)
+        {
+            throw new InvalidOperationException(
+                "The CMS database could not be accessed. Make sure 'ConnectionStrings:CmsDb' points at a "
+                + "writable location; the database file and schema are created automatically at startup.",
+                exception);
+        }
+
+        await using var connection = new SqliteConnection(cmsDbConnectionString);
+        await connection.OpenAsync();
+        await using var command = connection.CreateCommand();
+        command.CommandText = "PRAGMA journal_mode=WAL;";
+        await command.ExecuteNonQueryAsync();
+    }
+
+    /// <summary>
+    /// Deserializes a single CMS request from the parsed JSON body.
+    /// </summary>
+    /// <param name="element">The JSON object to deserialize.</param>
+    /// <returns>The deserialized request, or <see langword="null"/> when the element is null.</returns>
+    private static CmsRequest? DeserializeCmsRequest(JsonElement element)
+        => element.Deserialize<CmsRequest>();
+
+    /// <summary>
+    /// Deserializes a batch of CMS requests from the parsed JSON body.
+    /// </summary>
+    /// <param name="element">The JSON array to deserialize.</param>
+    /// <returns>The deserialized requests; null elements (invalid batch members) are kept for validation.</returns>
+    private static IReadOnlyList<CmsRequest?>? DeserializeCmsRequestBatch(JsonElement element)
+        => element.Deserialize<List<CmsRequest?>>();
 }

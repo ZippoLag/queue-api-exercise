@@ -6,6 +6,7 @@
 
   <ItemGroup>
     <ProjectReference Include="..\CmsWebhook.Application\CmsWebhook.Application.csproj" />
+    <ProjectReference Include="..\CmsWebhook.Infrastructure\CmsWebhook.Infrastructure.csproj" />
     <ProjectReference Include="..\..\Shared\QueueApi.Auth\QueueApi.Auth.csproj" />
   </ItemGroup>
 

@@ -1,12 +1,17 @@
 # Architecture
 
+## Approach
+In tandem of the KISS principle, it would be an oversight in my years of experience to not treat this project as if it had plans to grow in the future, meaning I will aim to keep a clear separation of boundaries and domains within a Modular Monolith, following a Ports+Adapters and Clean architecture. Then, given the fact that from the start there are requirements for event handling and distinct flows (CMS VS Users), following an Event-Driven architecture (not Event-Sourcing for now) with CQRS also in place feels natural. Observability via logging and possibly OTEL will be approached as soon as justified.
+
+To get usable value ASAP, I will focus on implementing visible API implementation first, adding inner domain and infrastructure (and simple UI?) later as needed.
+
 ## System Overview
 
 ![alt text](system_overview.png)
 
 The Queue-API-Exercise system is meant to have 2 REST APIs available: a webhook for handling CMS entity-related events and one to handle Users and Admin Users requests. Knowing this project may grow, I choose to pay the cost of an initial scaffolding big-bang with boilerplate and creating the solution as a modular monolith, ready to be split whenever necessary.
 
-**Current implementation status:** only the **CmsWebhook API** exists and is consuming the shared auth capability; the **User API** and the CMS event endpoints are still planned (see the roadmapped sections below).
+**Current implementation status:** the **CmsWebhook API** is fully implemented for v1 — shared auth, the `/cms/events` ingestion endpoint, and the asynchronous outbox processing into the entity store (see below). The **User API** (read side) and administrator/user seeding are still planned.
 
 ### Authentication & Authorization
 Authentication is handled in the CmsWebhook API as Basic Auth (`username`+`password`) in all incoming requests. The mechanism is implemented once in the shared `QueueApi.Auth` library (`src/Shared/QueueApi.Auth`) so the future User API reuses the same scheme and store.
@@ -19,21 +24,21 @@ Authentication is handled in the CmsWebhook API as Basic Auth (`username`+`passw
 > Note: no signature verification is provided in current version
 
 ### Persistence
-Persistence is a single `sqlite` relational database accessed via **EF Core** (per the initial requirements), which may be broken down into several data stores when a real database engine becomes necessary.
+Persistence uses `sqlite` relational databases accessed via **EF Core** (per the initial requirements). Two independent stores exist, each configurable through its own `ConnectionStrings` value (e.g. via environment variables) so it can point elsewhere — or at another engine via an EF Core provider swap — without code changes:
 
-- **Implemented:** the shared credential store (`db/queue-auth.db`, `Users` table) holding username + PBKDF2 password hash per user. Its location is configurable via the `ConnectionStrings:AuthDb` configuration value (e.g. through an environment variable), so it can point at a different store without code changes.
-- **Planned:** the `cms_event_log` table for CMS events (see CMS Webhook API below).
+- **Implemented:** the shared credential store (`db/queue-auth.db`, `Users` table) holding username + PBKDF2 password hash per user, configured via `ConnectionStrings:AuthDb` and provisioned idempotently by `scripts/init-db.sh`.
+- **Implemented:** the dedicated CMS database (`db/queue-cms.db`) holding the `cms_event_log` outbox and the `cms_entities` store, configured via `ConnectionStrings:CmsDb` and created automatically at startup (`EnsureCreated`, no init step). SQLite WAL journal mode and a busy timeout are enabled so the webhook's writes and the outbox worker's writes coexist on the single-writer file.
 
 Caching is out of scope.
 
 ### Performance
-Per the initial requirements, two decisions must be documented (TBD until the CMS event processing is implemented): the choice between asynchronous and synchronous event processing with its justification; and a read-only/writer configuration for the EF context with optimized EF read queries.
+Per the initial requirements, the event-processing decision is documented and justified: processing is **asynchronous** — the webhook records events and responds `201` immediately, while a background worker applies them (see the outbox model below). The write side uses a single writer context. The read-only/query-optimized EF configuration applies to the read side (User API), which is still planned and will optimize its EF read queries then.
 
 ### Logging
-Leveled console output (`Console` with explicit levels) is used for the small amount of logging present; richer logging (e.g. Serilog) remains TBD. Per the initial requirements' observability section, all processed events — including failing ones — must be logged; this applies to the CMS event processing once implemented.
+Leveled console output (`Console` with explicit levels) is used; richer logging (e.g. Serilog) and OTEL remain TBD. Per the initial requirements' observability section, all processed events — including failing ones — are logged: processed events at Information, stale/duplicate events at Warning, failures at Error with their exception.
 
 ## CMS Webhook API - v1
-> **Planned:** as of the current implementation the CmsWebhook API exposes only authentication, startup validation and a placeholder `GET /` route. The `/cms/events` endpoint, event types, validations and event processing below describe the **planned** v1 behavior.
+The `/cms/events` endpoint, event types, validations and event processing below describe the **implemented** v1 behavior.
 
 The **CmsWebhook** is intended to be a _webhooks API_ so it needs a quick response to the external system that's _notifying_ us of already-happened events. All **CmsEvent**s received will be stored in a `cms_event_log` table.
 
@@ -49,7 +54,7 @@ Endpoint which handles the `POST` operation and expects the following **CmsReque
 
 #### Fields:
 - `id`: `string` entity's id.
-- `payload`: `json` object which contains the actual data for the **CmsEntity** which needs to be fed into our system's DB. Due to the confidential-data requirements, they will be stored as an encrypted json string using a key available as environment variable (TBD: move to a secret key vault storage).
+- `payload`: `json` object which contains the actual data for the **CmsEntity** which needs to be fed into our system's DB. Payloads are stored as plain JSON text in the private CMS database — design decision: confidentiality is enforced by authentication and the private store (per the initial requirements); encryption-at-rest and a key vault are deferred until a real database engine is adopted.
 - `type`: `string` operation performed upon the entity
 - `timestamp`: `string` ISO 8601 (aka RFC 3339) date-time information of _when_ the event happened in the external CMS
 - `version`: `int` version number coming from the external system; the first version of an entity is `1` (per the initial requirements)
@@ -70,7 +75,7 @@ Endpoint which handles the `POST` operation and expects the following **CmsReque
 - `delete`: removes the **CmsEntity** by deleting it from the persistence layer
 
 #### Validations
-This endpoint acts as an Outbox, hence it validates and sanitizes only the base **CmsRequest** values. The `payload` object is checked to be a valid `json` key/value object and nothing else. If these do not cause an error, the **CmsEvent** is recorded in the database and the endpoint returns `201` (Created), otherwise it returns `400`.
+This endpoint acts as an Outbox, hence it validates and sanitizes only the base **CmsRequest** values. The `payload` object is checked to be a valid `json` key/value object and nothing else. If these do not cause an error, the **CmsEvent** is recorded in the database and the endpoint returns `201` (Created), otherwise it returns `400`. A batch is all-or-nothing: if any event in the array is invalid, the whole batch is rejected with `400` and nothing is recorded.
 
 #### Event processing
 When **CmsEvent**s are processed, a number of scenarios may arise depending on the `id` (entityId), `version` (entity version) and `payload`'s contents. These include, but are not limited to, the following:
@@ -79,8 +84,12 @@ When **CmsEvent**s are processed, a number of scenarios may arise depending on t
 1. `publish`, `update` and `unPublish`, when an event with the same `id`, `version` **and** `type` was already recorded in the DB, do nothing (idempotent handling of re-delivered events). An event of a different `type` for the same `id` and `version` is **not** a duplicate: e.g. a `publish` followed by an `unPublish` of the same version must still flip the entity to "not published", and vice versa.
   > a special case could be comparing the incoming `payload` with the entity already existing, or checking the "is published" flag status, I'm simplifying by ignoring these scenarios.
 1. `delete`, when referring to an `id` of an object that doesn't exist, does nothing.
+1. an event whose `version` is older than the entity's current stored version is ignored as stale (out-of-order delivery), so the stored entity always keeps the latest version.
 
 > Note: `payload` is assumed to always be present for `publish`, `update` and `unPublish` events, as stated in the request definition (`delete` events omit it).
+
+#### Outbox processing model
+Events are processed **immediately but asynchronously** (design decision): after recording the **CmsEvent** with status `Pending`, the endpoint signals an in-process `CmsEventProcessorWorker` through a `System.Threading.Channels` fast-path; the worker also sweeps pending rows at startup and periodically, so events survive crashes and restarts. Each event is processed in its own transaction and advances to `Processed`, or to `Failed` with its error recorded (failed events are not retried automatically and are logged at Error; processing continues with the next event). Processing maintains the `cms_entities` store — the latest version, payload, published flag and the administrator-visibility flag the User API will read. The write side (ingest command + processing) lives in `CmsWebhook.Application`/`CmsWebhook.Infrastructure` following strict CQRS; the read side is the planned User API.
 
 ## User API
 > **Planned:** not yet implemented; no User API project exists in the solution yet. The endpoints below describe the intended design.
