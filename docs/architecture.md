@@ -39,7 +39,7 @@ The **CmsWebhook** is intended to be a _webhooks API_ so it needs a quick respon
 ### `/cms/events` Request POST
 Edpoint which handles the `POST`operation and expects the following **CmsRequest** as `json` object as body:
 ```json
-{ "type": "eventType", "id": "eventId", "payload": {...}, "version": 0, "timestamp": "2024-01-01T00:00:00Z"}
+{ "type": "eventType", "id": "entityId", "payload": {...}, "version": 0, "timestamp": "2024-01-01T00:00:00Z"}
 ```
 
 > Note: All fields are required (not mull and with a valid value).
@@ -70,7 +70,7 @@ Edpoint which handles the `POST`operation and expects the following **CmsRequest
 This endpoint acts as an Outbox, hence it validates only the base **CmsRequest** values. The `payload` object is checked to be a valid `json` key/value object and nothing else. If these do not cause an error, the **CmsEvent** is recorded in the database and the endpoint returns `201` (Created), otherwise it returns `400`.
 
 #### Event processing
-When **CmsEvent**s are processed, a number of scenarios may arise depending on the `eventId`, `entityVersion` and `payload`'s contents. These include, but are not limited to, the following:
+When **CmsEvent**s are processed, a number of scenarios may arise depending on the `id` (entityId), `version` (entity version) and `payload`'s contents. These include, but are not limited to, the following:
 
 1. `publish`, `update` and `unPublish`, when they refer to an `id` of an object that doesn't exist, they create it.
 1. `publish`, `update` and `unPublish`, when they refer to a combination of `id` and `version` that already exist in the DB, do nothing.
