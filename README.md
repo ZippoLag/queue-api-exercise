@@ -17,8 +17,8 @@ dotnet run --project src/CmsWebhook/CmsWebhook.Api
 The API starts on `http://127.0.0.1:5264` and fails fast at startup if the credential store is missing or the CMS database is unreachable.
 
 ```bash
-# sanity check returns "Hello World!"
-curl -u cms-webhook:0f6c3c5a-9b2e-4f7d-8a1c-2e5b9d7f3a61 http://127.0.0.1:5264/
+# sanity check: anonymous liveness probe (no credentials)
+curl http://127.0.0.1:5264/health
 
 # send a CMS event (expect 201; it is then processed asynchronously into the entity store)
 curl -u cms-webhook:0f6c3c5a-9b2e-4f7d-8a1c-2e5b9d7f3a61 -X POST \

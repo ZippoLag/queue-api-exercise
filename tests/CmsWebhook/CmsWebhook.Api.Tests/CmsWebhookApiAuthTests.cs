@@ -23,12 +23,12 @@ public class CmsWebhookApiAuthTests
     /// "Request without Authorization header".
     /// </remarks>
     [Fact]
-    public async Task GetRoot_WithoutAuthorizationHeader_ReturnsUnauthorized()
+    public async Task PostEvents_WithoutAuthorizationHeader_ReturnsUnauthorized()
     {
         using var factory = new CmsWebhookApiFactory();
         using var client = factory.CreateClient();
 
-        var response = await client.GetAsync("/");
+        var response = await client.PostAsync("/cms/events", Json(ValidPublish()));
 
         response.StatusCode.Should().Be(HttpStatusCode.Unauthorized);
         (await response.Content.ReadAsStringAsync()).Should().BeEmpty();
@@ -44,13 +44,13 @@ public class CmsWebhookApiAuthTests
     /// "Request with an unsupported authorization scheme".
     /// </remarks>
     [Fact]
-    public async Task GetRoot_WithBearerScheme_ReturnsUnauthorized()
+    public async Task PostEvents_WithBearerScheme_ReturnsUnauthorized()
     {
         using var factory = new CmsWebhookApiFactory();
         using var client = factory.CreateClient();
         client.DefaultRequestHeaders.Authorization = new AuthenticationHeaderValue("Bearer", "some-token");
 
-        var response = await client.GetAsync("/");
+        var response = await client.PostAsync("/cms/events", Json(ValidPublish()));
 
         response.StatusCode.Should().Be(HttpStatusCode.Unauthorized);
         (await response.Content.ReadAsStringAsync()).Should().BeEmpty();
@@ -64,13 +64,13 @@ public class CmsWebhookApiAuthTests
     /// "Request with malformed Basic credentials".
     /// </remarks>
     [Fact]
-    public async Task GetRoot_WithMalformedBase64_ReturnsUnauthorized()
+    public async Task PostEvents_WithMalformedBase64_ReturnsUnauthorized()
     {
         using var factory = new CmsWebhookApiFactory();
         using var client = factory.CreateClient();
         client.DefaultRequestHeaders.TryAddWithoutValidation("Authorization", "Basic !!!not-base64!!!");
 
-        var response = await client.GetAsync("/");
+        var response = await client.PostAsync("/cms/events", Json(ValidPublish()));
 
         response.StatusCode.Should().Be(HttpStatusCode.Unauthorized);
         (await response.Content.ReadAsStringAsync()).Should().BeEmpty();
@@ -84,13 +84,13 @@ public class CmsWebhookApiAuthTests
     /// "Request with credentials of an unknown user"; the seeded store only contains the cms user.
     /// </remarks>
     [Fact]
-    public async Task GetRoot_WithUnknownUsername_ReturnsUnauthorized()
+    public async Task PostEvents_WithUnknownUsername_ReturnsUnauthorized()
     {
         using var factory = new CmsWebhookApiFactory();
         using var client = factory.CreateClient();
         client.DefaultRequestHeaders.Authorization = Basic("no-such-user", CmsWebhookApiFactory.CmsPassword);
 
-        var response = await client.GetAsync("/");
+        var response = await client.PostAsync("/cms/events", Json(ValidPublish()));
 
         response.StatusCode.Should().Be(HttpStatusCode.Unauthorized);
         (await response.Content.ReadAsStringAsync()).Should().BeEmpty();
@@ -105,13 +105,13 @@ public class CmsWebhookApiAuthTests
     /// stored PBKDF2 hash (spec "Passwords are verified against stored hashes").
     /// </remarks>
     [Fact]
-    public async Task GetRoot_WithWrongPassword_ReturnsUnauthorized()
+    public async Task PostEvents_WithWrongPassword_ReturnsUnauthorized()
     {
         using var factory = new CmsWebhookApiFactory();
         using var client = factory.CreateClient();
         client.DefaultRequestHeaders.Authorization = Basic(CmsWebhookApiFactory.CmsUsername, "wrong-password");
 
-        var response = await client.GetAsync("/");
+        var response = await client.PostAsync("/cms/events", Json(ValidPublish()));
 
         response.StatusCode.Should().Be(HttpStatusCode.Unauthorized);
         (await response.Content.ReadAsStringAsync()).Should().BeEmpty();
@@ -126,16 +126,15 @@ public class CmsWebhookApiAuthTests
     /// scenario "Credential store is initialized".
     /// </remarks>
     [Fact]
-    public async Task GetRoot_WithValidCmsCredentials_ReturnsOk()
+    public async Task PostEvents_WithValidCmsCredentials_ReturnsCreated()
     {
         using var factory = new CmsWebhookApiFactory();
         using var client = factory.CreateClient();
         client.DefaultRequestHeaders.Authorization = Basic(CmsWebhookApiFactory.CmsUsername, CmsWebhookApiFactory.CmsPassword);
 
-        var response = await client.GetAsync("/");
+        var response = await client.PostAsync("/cms/events", Json(ValidPublish()));
 
-        response.StatusCode.Should().Be(HttpStatusCode.OK);
-        (await response.Content.ReadAsStringAsync()).Should().Be("Hello World!");
+        response.StatusCode.Should().Be(HttpStatusCode.Created);
     }
 
     /// <summary>
@@ -146,7 +145,7 @@ public class CmsWebhookApiAuthTests
     /// "Valid credentials for a non-cms user"; the second user is injected through the provider seam.
     /// </remarks>
     [Fact]
-    public async Task GetRoot_WithValidNonCmsCredentials_ReturnsForbidden()
+    public async Task PostEvents_WithValidNonCmsCredentials_ReturnsForbidden()
     {
         var provider = new InMemoryUserCredentialsProvider(
             (CmsWebhookApiFactory.CmsUsername, CmsWebhookApiFactory.CmsPassword),
@@ -155,7 +154,7 @@ public class CmsWebhookApiAuthTests
         using var client = factory.CreateClient();
         client.DefaultRequestHeaders.Authorization = Basic(OtherUsername, OtherPassword);
 
-        var response = await client.GetAsync("/");
+        var response = await client.PostAsync("/cms/events", Json(ValidPublish()));
 
         response.StatusCode.Should().Be(HttpStatusCode.Forbidden);
         (await response.Content.ReadAsStringAsync()).Should().BeEmpty();
@@ -263,4 +262,9 @@ public class CmsWebhookApiAuthTests
 
     private static AuthenticationHeaderValue Basic(string username, string password)
         => new("Basic", Convert.ToBase64String(Encoding.UTF8.GetBytes($"{username}:{password}")));
+
+    private static StringContent Json(string body) => new(body, Encoding.UTF8, "application/json");
+
+    private static string ValidPublish(string id = "entity-1")
+        => $$"""{"type":"publish","id":"{{id}}","payload":{"title":"hello"},"version":1,"timestamp":"2024-01-01T00:00:00Z"}""";
 }

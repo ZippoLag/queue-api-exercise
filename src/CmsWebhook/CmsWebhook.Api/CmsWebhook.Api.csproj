@@ -10,6 +10,11 @@
     <ProjectReference Include="..\..\Shared\QueueApi.Auth\QueueApi.Auth.csproj" />
   </ItemGroup>
 
+  <ItemGroup>
+    <PackageReference Include="Microsoft.AspNetCore.OpenApi" Version="9.0.18" />
+    <PackageReference Include="Scalar.AspNetCore" Version="2.16.19" />
+  </ItemGroup>
+
   <PropertyGroup>
     <TargetFramework>net9.0</TargetFramework>
     <Nullable>enable</Nullable>

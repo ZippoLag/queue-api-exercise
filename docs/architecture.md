@@ -23,6 +23,8 @@ Authentication is handled in the CmsWebhook API as Basic Auth (`username`+`passw
 
 > Note: no signature verification is provided in current version
 
+> Note: every endpoint requires Basic auth **except** the anonymous `/health` liveness probe and the `/openapi/v1.json` contract endpoint. Both are marked `.AllowAnonymous()` so load balancers, orchestrators, and clients can probe/discover them without credentials; every other endpoint still rejects anonymous requests with `401`.
+
 ### Persistence
 Persistence uses `sqlite` relational databases accessed via **EF Core** (per the initial requirements). Two independent stores exist, each configurable through its own `ConnectionStrings` value (e.g. via environment variables) so it can point elsewhere — or at another engine via an EF Core provider swap — without code changes:
 
@@ -90,6 +92,12 @@ When **CmsEvent**s are processed, a number of scenarios may arise depending on t
 
 #### Outbox processing model
 Events are processed **immediately but asynchronously** (design decision): after recording the **CmsEvent** with status `Pending`, the endpoint signals an in-process `CmsEventProcessorWorker` through a `System.Threading.Channels` fast-path; the worker also sweeps pending rows at startup and periodically, so events survive crashes and restarts. Each event is processed in its own transaction and advances to `Processed`, or to `Failed` with its error recorded (failed events are not retried automatically and are logged at Error; processing continues with the next event). Processing maintains the `cms_entities` store — the latest version, payload, published flag and the administrator-visibility flag the User API will read. The write side (ingest command + processing) lives in `CmsWebhook.Application`/`CmsWebhook.Infrastructure` following strict CQRS; the read side is the planned User API.
+
+### Healthcheck
+`GET /health` is an **anonymous liveness probe** returning `200 OK` with a JSON body (`{"status":"Healthy"}`) while the application is running, and `503 Service Unavailable` when unhealthy. It exists so load balancers and orchestrators can probe the API without credentials, and is the first endpoint exempt from the fallback authorization policy. It is implemented with the built-in `AddHealthChecks()` + `MapHealthChecks("/health")` and a small JSON response writer — liveness only, no deep or database checks (the app already fails fast at startup when either store is unreachable).
+
+### OpenAPI contract
+`GET /openapi/v1.json` serves an **OpenAPI document generated from the endpoint code at runtime** (`Microsoft.AspNetCore.OpenApi`), so the contract can never drift from the implementation — code is the source of truth. The endpoint is anonymous. In the **Development** environment only, the **Scalar** API reference UI (`Scalar.AspNetCore`) is mapped as the browsable Swagger replacement (`/scalar/v1`); production keeps only the raw JSON contract. Endpoints are organized into per-feature classes (`Endpoints/HealthEndpoints.cs`, `Endpoints/CmsEventEndpoints.cs`) exposing `MapXxx(this IEndpointRouteBuilder)` extension methods, with `WithSummary`/`WithDescription`/`WithTag` metadata enriching the contract.
 
 ## User API
 > **Planned:** not yet implemented; no User API project exists in the solution yet. The endpoints below describe the intended design.

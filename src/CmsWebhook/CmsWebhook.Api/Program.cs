@@ -1,12 +1,13 @@
 using System.Data.Common;
 using System.Security.Claims;
-using System.Text.Json;
+using CmsWebhook.Api.Endpoints;
 using CmsWebhook.Application;
-using CmsWebhook.Domain;
 using CmsWebhook.Infrastructure;
 using Microsoft.AspNetCore.Authorization;
 using Microsoft.Data.Sqlite;
+using Microsoft.OpenApi.Models;
 using QueueApi.Auth;
+using Scalar.AspNetCore;
 
 var builder = WebApplication.CreateBuilder(args);
 
@@ -25,6 +26,37 @@ builder.Services.AddAuthorization(options =>
         .RequireClaim(ClaimTypes.Name, cmsUsername)
         .Build();
 });
+
+builder.Services.AddOpenApi(options =>
+{
+    options.AddDocumentTransformer((document, _, _) =>
+    {
+        document.Info.Title = "CMS Webhook API";
+        document.Info.Version = "v1";
+
+        // MapHealthChecks registers a raw RequestDelegate pipeline with no OpenAPI metadata, so the
+        // generator omits it. Declare the liveness probe explicitly so the contract still describes it.
+        document.Paths["/health"] = new OpenApiPathItem
+        {
+            Operations = new Dictionary<OperationType, OpenApiOperation>
+            {
+                [OperationType.Get] = new OpenApiOperation
+                {
+                    Summary = "Liveness probe",
+                    Tags = new List<OpenApiTag> { new() { Name = "health" } },
+                    Responses = new OpenApiResponses
+                    {
+                        ["200"] = new OpenApiResponse { Description = "The application is healthy." },
+                        ["503"] = new OpenApiResponse { Description = "The application is unhealthy." },
+                    },
+                },
+            },
+        };
+
+        return Task.CompletedTask;
+    });
+});
+builder.Services.AddHealthChecks();
 
 var app = builder.Build();
 
@@ -47,53 +79,14 @@ using (var scope = app.Services.CreateScope())
 app.UseAuthentication();
 app.UseAuthorization();
 
-app.MapGet("/", () => "Hello World!");
+app.MapHealthEndpoints();
+app.MapCmsEventEndpoints();
+app.MapOpenApi().AllowAnonymous();
 
-app.MapPost("/cms/events", async (
-    HttpRequest request,
-    IIngestCmsEventsCommandHandler handler,
-    CancellationToken cancellationToken) =>
+if (app.Environment.IsDevelopment())
 {
-    JsonDocument? document = null;
-    try
-    {
-        document = await JsonDocument.ParseAsync(request.Body, cancellationToken: cancellationToken);
-    }
-    catch (JsonException)
-    {
-        return Results.BadRequest();
-    }
-
-    // The document must stay alive while requests are deserialized and validated: CmsRequest payloads
-    // are JsonElements referencing its memory, and the validator reads them via GetRawText().
-    using (document)
-    {
-        IReadOnlyList<CmsRequest?>? requests;
-        try
-        {
-            var root = document.RootElement;
-            requests = root.ValueKind switch
-            {
-                JsonValueKind.Object => new[] { DeserializeCmsRequest(root) },
-                JsonValueKind.Array => DeserializeCmsRequestBatch(root),
-                _ => null,
-            };
-        }
-        catch (JsonException)
-        {
-            // Unparseable or wrongly-typed fields (e.g. "type": 5) are client errors, not server errors.
-            return Results.BadRequest();
-        }
-
-        if (requests is null || requests.Any(item => item is null))
-        {
-            return Results.BadRequest();
-        }
-
-        var result = await handler.HandleAsync(requests.Cast<CmsRequest>().ToList(), cancellationToken);
-        return result.Success ? Results.StatusCode(StatusCodes.Status201Created) : Results.BadRequest();
-    }
-});
+    app.MapScalarApiReference().AllowAnonymous();
+}
 
 app.Run();
 
@@ -242,19 +235,4 @@ public partial class Program
         await command.ExecuteNonQueryAsync();
     }
 
-    /// <summary>
-    /// Deserializes a single CMS request from the parsed JSON body.
-    /// </summary>
-    /// <param name="element">The JSON object to deserialize.</param>
-    /// <returns>The deserialized request, or <see langword="null"/> when the element is null.</returns>
-    private static CmsRequest? DeserializeCmsRequest(JsonElement element)
-        => element.Deserialize<CmsRequest>();
-
-    /// <summary>
-    /// Deserializes a batch of CMS requests from the parsed JSON body.
-    /// </summary>
-    /// <param name="element">The JSON array to deserialize.</param>
-    /// <returns>The deserialized requests; null elements (invalid batch members) are kept for validation.</returns>
-    private static IReadOnlyList<CmsRequest?>? DeserializeCmsRequestBatch(JsonElement element)
-        => element.Deserialize<List<CmsRequest?>>();
 }
