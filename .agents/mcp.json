@@ -1,0 +1,13 @@
+{
+  "mcpServers": {
+    "openlore": {
+      "type": "stdio",
+      "command": "openlore",
+      "args": ["mcp", "--preset", "full"]
+    },
+    "microsoft-learn": {
+      "type": "http",
+      "url": "https://learn.microsoft.com/api/mcp"
+    }
+  }
+}

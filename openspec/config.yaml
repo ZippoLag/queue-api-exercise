@@ -1,13 +1,12 @@
 schema: spec-driven
 
-# Project context (optional)
-# This is shown to AI when creating artifacts.
-# Add your tech stack, conventions, style guides, domain knowledge, etc.
-# Example:
-#   context: |
-#     Tech stack: TypeScript, React, Node.js
-#     We use conventional commits
-#     Domain: e-commerce platform
+# Project context (shown to AI when creating artifacts)
+context: |
+  Tech stack: .NET 9 (C#), ASP.NET Core minimal APIs, EF Core over SQLite.
+  Architecture: modular monolith, Clean Architecture + ports/adapters, CQRS (writes/reads separated), Event-Driven outbox.
+  Conventions: XML doc comments required (what/why); xUnit + Moq + FluentAssertions; Serilog or leveled Console logging.
+  Source: src/<project> (CmsWebhook.*, Shared/QueueApi.Auth); tests under tests/<project>.
+  Domain: see docs/dsl_glossary.md and docs/architecture.md.
 
 # Per-artifact rules (optional)
 # Add custom rules for specific artifacts.

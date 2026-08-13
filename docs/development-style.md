@@ -19,12 +19,20 @@ source ~/.bashrc # Reloading the terminal
 pnpm runtime set node lts -g
 pnpm install -g freebuff
 pnpm install -g @fission-ai/openspec@latest
-[ -d openspec/ ] || openspec init # If the openspec folder doesn't exist (ie, you're starting a new project, you must initialize first)
+[ -d openspec/ ] && openspec update || openspec init # If the openspec folder doesn't exist (ie, you're starting a new project, you must initialize first)
 pnpm install -g openlore # Installs OpenLore to keep track of development drift and to incorporate manual code changes into the spec if need be
-[ -f .openlore/index-bundle.olbundle ] && openlore import .openlore/index-bundle.olbundle || openlore install # Checks if openlore is already initialized, otherwise does so
+[ -f .openlore/index-bundle.olbundle ] && openlore import .openlore/index-bundle.olbundle && openlore analyze || openlore install # Checks if openlore is already initialized, otherwise does so
 openlore doctor # Checks openlore has been correctly initialized
 openlore verify # Verifies the current specs' validity
 # openlore drift --install-hook # currnely wrongly detects skill files as drift, run `openlore drift` manually before commit! See https://github.com/clay-good/OpenLore/issues/350
 ```
+
+### MCP servers for Freebuff
+Freebuff loads MCP servers from `.agents/mcp.json` (searched in the project root, its parent, then `~/.agents/`), keyed by `mcpServers`. This repo wires two servers:
+
+- `openlore` — `openlore mcp --preset full` over stdio (all 73 tools, including the OpenSpec tools `check_spec_drift`, `search_specs`, `get_spec`, `list_spec_domains`, and `audit_spec_coverage`).
+- `microsoft-learn` — the official Microsoft Learn MCP over HTTP (referenced in `AGENTS.md`).
+
+> Note: OpenLore 2.x has no C#/.NET function extractor yet (only TypeScript, Go, Rust, Python), so `orient` and the call-graph tools return no results on this .NET codebase; `search_code` (text) and the spec tools still work. `openlore verify`/`generate` additionally require an LLM API key.
 
 > Note: I've given the above sequence the flexibility to be ran in a new project, should you want to copy them into your own set-up.
