@@ -1,6 +1,6 @@
 # CMS Webhook API Specification
 
-> Source files: src/CmsWebhook/CmsWebhook.Api/Program.cs, src/CmsWebhook/CmsWebhook.Api/appsettings.json, src/CmsWebhook/CmsWebhook.Api/CmsWebhook.Api.csproj, src/CmsWebhook/CmsWebhook.Api/Properties/launchSettings.json, tests/CmsWebhook/CmsWebhook.Api.Tests/CmsWebhookApiAuthTests.cs, tests/CmsWebhook/CmsWebhook.Api.Tests/CmsWebhookApiFactory.cs, tests/CmsWebhook/CmsWebhook.Api.Tests/InMemoryUserCredentialsProvider.cs
+> Source files: src/CmsWebhook/CmsWebhook.Api/Program.cs, src/CmsWebhook/CmsWebhook.Api/appsettings.json, src/CmsWebhook/CmsWebhook.Api/CmsWebhook.Api.csproj, src/CmsWebhook/CmsWebhook.Api/Properties/AssemblyInfo.cs, src/CmsWebhook/CmsWebhook.Api/Properties/launchSettings.json, tests/CmsWebhook/CmsWebhook.Api.Tests/CmsWebhookApiAuthTests.cs, tests/CmsWebhook/CmsWebhook.Api.Tests/CmsWebhookApiFactory.cs, tests/CmsWebhook/CmsWebhook.Api.Tests/InMemoryUserCredentialsProvider.cs, tests/CmsWebhook/CmsWebhook.Api.Tests/ProgramConfigurationTests.cs
 
 ## Purpose
 
