@@ -2,6 +2,8 @@
 
 A .NET 9 modular-monolith exercise: a CMS Webhook API with Basic authentication, an in-process outbox, and a shared credential store, all guarded by a 100% coverage ratchet and CI quality gates.
 
+**Source repository:** [ZippoLag/queue-api-exercise](https://github.com/ZippoLag/queue-api-exercise)
+
 This site is **generated** by [DocFX](https://dotnet.github.io/docfx/) from two sources:
 
 - **Conceptual documentation** — the hand-written Markdown under `docs/` (`architecture`, `configuration`, `dsl_glossary`, `development-style`) plus this repository's `README`.

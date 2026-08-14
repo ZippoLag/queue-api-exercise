@@ -2,6 +2,8 @@
 
 A platform-agnostic **.NET 9** API solution that accepts messages from an external CMS, records them, and processes them asynchronously into a database. The current implementation provides the **CmsWebhook API** (`POST /cms/events`) with shared Basic-Auth credentials; a Users API reading the resulting entity store is planned.
 
+**Docs site:** [queue-api-exercise docs](https://ZippoLag.github.io/queue-api-exercise/) — generated API reference and conceptual docs, rebuilt on every push to `main`.
+
 ## Quickstart
 
 > The repo provides a dev container with all dependencies and VSCode extensions. Otherwise you need the **.NET 9 SDK**.

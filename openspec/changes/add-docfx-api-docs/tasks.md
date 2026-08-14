@@ -11,7 +11,7 @@
 ## 3. Deploy
 
 - [x] 3.1 Add `.github/workflows/docs.yml` triggered on `main`: setup-dotnet, `dotnet tool restore`, `dotnet docfx metadata` + `dotnet docfx build`, then `configure-pages` → `upload-pages-artifact` (`_site`) → `deploy-pages`, with `pages: write` + `id-token: write` permissions and a `github-pages` environment
-- [ ] 3.2 Set the repository Pages source to "GitHub Actions" (one-time setting) and verify the first deploy publishes to `https://ZippoLag.github.io/queue-api-exercise/` — blocked: requires the repo's Settings → Pages → Source = "GitHub Actions" (or an authenticated Pages API call; no token available here), then a push to `main` to trigger the first deploy
+- [x] 3.2 Set the repository Pages source to "GitHub Actions" (one-time setting) and verify the first deploy publishes to `https://ZippoLag.github.io/queue-api-exercise/` — user saved the setting in Settings → Pages (confirmed via authenticated Pages API: `build_type: "workflow"`, source `main`/`/`); re-ran the previously failed Docs run (#31810956903) which then passed end-to-end; site verified live: `index.html` 200, docs pages and `api/CmsWebhook.Api.Endpoints.html` 200
 
 ## 4. Documentation
 
