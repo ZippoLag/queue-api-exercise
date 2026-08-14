@@ -245,6 +245,30 @@ public class CmsWebhookApiAuthTests
         }
     }
 
+    /// <summary>
+    /// Verifies the host fails to start when the CMS database is unreachable.
+    /// </summary>
+    /// <remarks>
+    /// Source business rule: the startup fail-fast block must surface an inaccessible CMS store with
+    /// setup guidance (design D8: the schema is created at startup, so an unwritable location cannot be
+    /// recovered from at runtime). The data source points into a directory that is never created, so
+    /// <c>EnsureCreated</c> cannot open the file.
+    /// </remarks>
+    [Fact]
+    public void CreateClient_WhenCmsDatabaseIsUnreachable_ThrowsWithGuidance()
+    {
+        var databasePath = Path.Combine(
+            Path.GetTempPath(),
+            $"queue-api-cms-unreachable-{Guid.NewGuid():N}",
+            "cms.db");
+
+        using var factory = new CmsWebhookApiFactory(cmsDbConnectionString: $"Data Source={databasePath}");
+
+        var exception = CaptureStartupFailure(factory);
+
+        exception.Message.Should().Contain("could not be accessed");
+    }
+
     private static InvalidOperationException CaptureStartupFailure(CmsWebhookApiFactory factory)
     {
         var exception = Record.Exception(() => factory.CreateClient());

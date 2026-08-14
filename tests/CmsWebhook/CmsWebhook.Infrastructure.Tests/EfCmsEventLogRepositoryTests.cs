@@ -111,6 +111,28 @@ public class EfCmsEventLogRepositoryTests
         stored.Error.Should().Be("boom");
     }
 
+    /// <summary>
+    /// Verifies a status update for an unknown event id is a silent no-op.
+    /// </summary>
+    /// <remarks>
+    /// The event log is append-only from the ingest side and status updates always target rows recorded
+    /// earlier in the same transaction; a missing row therefore must not throw (e.g. when the event was
+    /// removed by a manual store edit) — the update is simply skipped.
+    /// </remarks>
+    [Fact]
+    public async Task MarkProcessed_WithUnknownEventId_DoesNothing()
+    {
+        using var database = new CmsTestDatabase();
+        await using var context = database.CreateContext();
+        var repository = new EfCmsEventLogRepository(context);
+        await repository.AddAsync(new[] { Event(1, "entity-1") }, CancellationToken.None);
+
+        await repository.MarkProcessedAsync(999, DateTimeOffset.UtcNow, CancellationToken.None);
+
+        var stored = await context.Events.SingleAsync();
+        stored.Status.Should().Be(CmsEventStatus.Pending);
+    }
+
     private static CmsEvent Event(long id, string entityId)
         => new()
         {

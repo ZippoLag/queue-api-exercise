@@ -117,7 +117,7 @@ public partial class Program
     /// <exception cref="InvalidOperationException">
     /// <c>ConnectionStrings:{connectionStringName}</c> is not configured.
     /// </exception>
-    private static string ResolveConnectionString(
+    internal static string ResolveConnectionString(
         IConfiguration configuration,
         string contentRootPath,
         string connectionStringName)
@@ -156,7 +156,7 @@ public partial class Program
     /// </summary>
     /// <param name="startPath">The directory where the walk starts.</param>
     /// <returns>The repository root directory, or <see langword="null"/> when the marker is not found.</returns>
-    private static string? FindRepositoryRoot(string startPath)
+    internal static string? FindRepositoryRoot(string startPath)
     {
         var directory = new DirectoryInfo(startPath);
         while (directory is not null)

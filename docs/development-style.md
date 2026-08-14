@@ -52,18 +52,18 @@ openlore drift     # detect spec/code drift
 Every push and pull request is verified by `.github/workflows/ci.yml` (see the README's CI section for the exact steps and how to reproduce them locally). Three .NET-native gates enforce quality with no third-party service:
 
 1. **Warnings as errors** — root `Directory.Build.props` sets `TreatWarningsAsErrors=true` for every project (src, tests, tools), so Roslyn compiler/analyzer findings block the build both locally and in CI. The gate is universal, not a CI-only flag, so developers see failures before pushing.
-2. **Coverage ratchet** — `dotnet test --collect:"XPlat Code Coverage"` emits one `coverage.cobertura.xml` per test project; `scripts/check-coverage.sh` sums `lines-valid`/`lines-covered` across all of them and fails when the aggregate line rate is below `.config/coverage-min.txt`.
+2. **Coverage ratchet** — `dotnet test --collect:"XPlat Code Coverage"` emits one `coverage.cobertura.xml` per test project; `scripts/check-coverage.sh` counts each **unique source line** exactly once (union across reports, paths normalized) — a line is covered if *any* test project covers it — and fails when the unique-line rate is below `.config/coverage-min.txt`. Union aggregation is the honest interpretation of "every line tested by someone": summing per-report counts would double-count shared assemblies (e.g. the `QueueApi.Auth` library is referenced by three test projects) and make the gate unreadable. Unknown path prefixes fail the script loudly so the normalization table (documented in the script header) is extended rather than silently mis-measured.
 3. **Spec discipline** — `openspec validate --all` (pinned `@fission-ai/openspec` CLI) runs in the same workflow.
 
 ### Raising the coverage threshold
 
-The committed number in `.config/coverage-min.txt` is a **ratchet**: it starts at the measured baseline (74.5%) and only rises — a coverage regression fails CI, never silently passes. To raise it deliberately:
+The committed number in `.config/coverage-min.txt` is a **ratchet**: it currently sits at **95.1%** and only rises — a coverage regression fails CI, never silently passes. To raise it deliberately:
 
-1. Improve coverage (new tests) and run `bash scripts/check-coverage.sh` to confirm the new aggregate rate.
+1. Improve coverage (new tests) and run `bash scripts/check-coverage.sh` to confirm the new unique-line rate.
 2. Edit `.config/coverage-min.txt` to a value at or below the new measured rate (leave a small margin for machine-to-machine variance).
 3. Commit the threshold change together with the tests that justify it.
 
-If the gate fails spuriously, it is almost always a **non-deterministic coverage measurement**: integration tests that record events must wait for the async outbox worker to finish (e.g. await the event's `Processed` status, `AsNoTracking`) before disposing the test factory — otherwise teardown can cancel a mid-`ProcessAsync` worker and coverage flaps between runs (see design decision 4 of the `add-ci-build-and-test` change).
+The union metric is **deterministic**: repeated runs report the same unique-line rate (the current tree measures 100.00%, 716/716 across consecutive runs). Two practices keep it that way: integration tests that record events wait for the async outbox worker to finish (e.g. await the event's `Processed` status with `AsNoTracking`) before disposing the test factory, and the entry-point shims (`tools/AuthDbInit/Program.cs`, exercised via the assembly entry point; `CmsWebhook.Api/Program.cs`, exercised through `WebApplicationFactory`) are covered rather than excluded.
 
 ### MCP servers for Freebuff
 Freebuff loads MCP servers from `.agents/mcp.json` (searched in the project root, its parent, then `~/.agents/`), keyed by `mcpServers`. This repo wires two servers:

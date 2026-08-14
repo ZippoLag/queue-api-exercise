@@ -3,8 +3,10 @@ using CmsWebhook.Domain;
 using FluentAssertions;
 using Microsoft.EntityFrameworkCore;
 using Microsoft.Extensions.DependencyInjection;
+using Microsoft.Extensions.Hosting;
 using Microsoft.Extensions.Logging;
 using Microsoft.Extensions.Logging.Abstractions;
+using Moq;
 
 namespace CmsWebhook.Infrastructure.Tests;
 
@@ -77,6 +79,129 @@ public class CmsEventProcessorWorkerTests
         events[0].Error.Should().NotBeNullOrWhiteSpace();
         events[1].Status.Should().Be(CmsEventStatus.Processed);
         (await context.Entities.CountAsync()).Should().Be(1);
+    }
+
+    /// <summary>
+    /// Verifies a sweep failure inside the loop is logged and the worker retries on the next cycle.
+    /// </summary>
+    /// <remarks>
+    /// Source business rule: spec "Events are processed asynchronously" — a transient store failure must
+    /// not kill the worker; the sweep is retried on the next cycle (the timer is the durability safety net).
+    /// The mocked repository fails only on the second sweep, then recovers; two channel notifications wake
+    /// the loop without waiting for the 5-second sweep timer.
+    /// </remarks>
+    [Fact]
+    public async Task ExecuteAsync_WhenSweepFails_LogsAndContinuesLooping()
+    {
+        var repository = new Mock<ICmsEventLogRepository>();
+        var processor = new Mock<ICmsEventProcessor>();
+        var callCount = 0;
+        repository.Setup(x => x.GetPendingAsync(It.IsAny<CancellationToken>()))
+            .ReturnsAsync(() =>
+            {
+                callCount++;
+                if (callCount == 2)
+                {
+                    throw new InvalidOperationException("sweep boom");
+                }
+
+                return Array.Empty<CmsEvent>();
+            });
+        var (worker, outbox) = CreateWorkerWithMocks(repository, processor);
+        var services = new ServiceCollection();
+        services.AddSingleton<CmsEventProcessorWorker>(worker);
+        services.AddSingleton<IHostedService>(sp => sp.GetRequiredService<CmsEventProcessorWorker>());
+        using var provider = services.BuildServiceProvider();
+        var hosted = provider.GetRequiredService<IHostedService>();
+
+        await hosted.StartAsync(CancellationToken.None);
+        outbox.Notify();
+        outbox.Notify();
+        await WaitUntilAsync(() => callCount >= 3);
+        await hosted.StopAsync(CancellationToken.None);
+
+        repository.Verify(x => x.GetPendingAsync(It.IsAny<CancellationToken>()), Times.AtLeast(3));
+    }
+
+    /// <summary>
+    /// Verifies an event whose processing throws does not stop the sweep and is logged as pending.
+    /// </summary>
+    /// <remarks>
+    /// Source business rule: spec "A failing event is marked failed and processing continues"; the
+    /// per-event guard in the worker keeps the queue moving even when the processor itself throws
+    /// (as opposed to marking the event failed, which is the processor's own contract).
+    /// </remarks>
+    [Fact]
+    public async Task ProcessPendingAsync_WhenProcessorThrows_LogsAndContinues()
+    {
+        var @event = PublishEvent("entity-1", version: 1);
+        var repository = new Mock<ICmsEventLogRepository>();
+        repository.Setup(x => x.GetPendingAsync(It.IsAny<CancellationToken>()))
+            .ReturnsAsync(new[] { @event });
+        var processor = new Mock<ICmsEventProcessor>();
+        processor.Setup(x => x.ProcessAsync(@event, It.IsAny<CancellationToken>()))
+            .ThrowsAsync(new InvalidOperationException("processing boom"));
+        var (worker, _) = CreateWorkerWithMocks(repository, processor);
+
+        var act = () => worker.ProcessPendingAsync(CancellationToken.None);
+
+        await act.Should().NotThrowAsync();
+        processor.Verify(x => x.ProcessAsync(@event, It.IsAny<CancellationToken>()), Times.Once);
+    }
+
+    /// <summary>
+    /// Verifies a cancellation observed mid-processing stops the sweep silently.
+    /// </summary>
+    /// <remarks>
+    /// The per-event guard distinguishes a cooperative shutdown (<see cref="OperationCanceledException"/>
+    /// with the cancellation requested) from a real failure: shutdown stops the sweep, failure is logged
+    /// and the queue keeps moving.
+    /// </remarks>
+    [Fact]
+    public async Task ProcessPendingAsync_WhenCancelledDuringProcessing_StopsWithoutThrowing()
+    {
+        var @event = PublishEvent("entity-1", version: 1);
+        var repository = new Mock<ICmsEventLogRepository>();
+        repository.Setup(x => x.GetPendingAsync(It.IsAny<CancellationToken>()))
+            .ReturnsAsync(new[] { @event });
+        var processor = new Mock<ICmsEventProcessor>();
+        processor.Setup(x => x.ProcessAsync(@event, It.IsAny<CancellationToken>()))
+            .ThrowsAsync(new OperationCanceledException());
+        using var cts = new CancellationTokenSource();
+        cts.Cancel();
+        var (worker, _) = CreateWorkerWithMocks(repository, processor);
+
+        var act = () => worker.ProcessPendingAsync(cts.Token);
+
+        await act.Should().NotThrowAsync();
+    }
+
+    private static (CmsEventProcessorWorker Worker, OutboxChannel Outbox) CreateWorkerWithMocks(
+        Mock<ICmsEventLogRepository> repository,
+        Mock<ICmsEventProcessor> processor)
+    {
+        var serviceProvider = new Mock<IServiceProvider>();
+        serviceProvider.Setup(x => x.GetService(typeof(ICmsEventLogRepository))).Returns(repository.Object);
+        serviceProvider.Setup(x => x.GetService(typeof(ICmsEventProcessor))).Returns(processor.Object);
+        var scope = new Mock<IServiceScope>();
+        scope.Setup(x => x.ServiceProvider).Returns(serviceProvider.Object);
+        var scopeFactory = new Mock<IServiceScopeFactory>();
+        scopeFactory.Setup(x => x.CreateScope()).Returns(scope.Object);
+
+        var outbox = new OutboxChannel();
+        var worker = new CmsEventProcessorWorker(outbox, scopeFactory.Object, NullLogger<CmsEventProcessorWorker>.Instance);
+        return (worker, outbox);
+    }
+
+    private static async Task WaitUntilAsync(Func<bool> condition)
+    {
+        var deadline = DateTime.UtcNow.AddSeconds(10);
+        while (!condition() && DateTime.UtcNow < deadline)
+        {
+            await Task.Delay(50);
+        }
+
+        condition().Should().BeTrue("the expected worker cycle should have happened within the timeout");
     }
 
     private static ServiceProvider BuildProvider(string connectionString)

@@ -176,6 +176,31 @@ public class EfCmsEventProcessorTests
         processed.Status.Should().Be(CmsEventStatus.Processed);
     }
 
+    /// <summary>
+    /// Verifies a failure to even record the failure is logged and swallowed, not propagated.
+    /// </summary>
+    /// <remarks>
+    /// Source business rule: spec "A failing event is marked failed and processing continues"; when the
+    /// store itself is unreachable the best-effort failure recording fails too, and the processor must
+    /// still not throw — the worker's per-event guard depends on that (design D5: "Marking the event
+    /// failed is best-effort"). A disposed context makes both the transaction and the failure-marking fail.
+    /// </remarks>
+    [Fact]
+    public async Task Process_WhenFailureRecordingAlsoFails_DoesNotThrow()
+    {
+        using var database = new CmsTestDatabase();
+        var context = database.CreateContext();
+        var processor = CreateProcessor(context);
+        var malformed = Event(CmsEventType.Publish, "entity-1"); // versionless non-delete → throws in rules
+        context.Events.Add(malformed);
+        await context.SaveChangesAsync();
+        await context.DisposeAsync();
+
+        var act = () => processor.ProcessAsync(malformed, CancellationToken.None);
+
+        await act.Should().NotThrowAsync();
+    }
+
     private static EfCmsEventProcessor CreateProcessor(CmsDbContext context)
         => new(
             context,
