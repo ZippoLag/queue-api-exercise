@@ -100,19 +100,26 @@ app.Run();
 public partial class Program
 {
     /// <summary>
-    /// Resolves a connection string, turning relative SQLite data sources into repository-root paths so
-    /// the documented "run from the repo root" flow works from any working directory.
+    /// Resolves a connection string, turning relative SQLite data sources into absolute paths against the
+    /// configured database base directory (<c>Data:DbBasePath</c>), falling back to the content root.
     /// </summary>
     /// <remarks>
     /// Serves both stores: the shared credential store (<c>ConnectionStrings:AuthDb</c>) and the dedicated
     /// CMS database (<c>ConnectionStrings:CmsDb</c>, design D3). A single configuration value per store is
     /// the knob for pointing at another location (or, later, another engine via an EF Core provider swap).
-    /// Absolute and in-memory data sources are returned unchanged.
+    /// Absolute and in-memory data sources are returned unchanged; a relative base path resolves against
+    /// the content root. The resolved directory is created when missing so a fresh checkout or deployment
+    /// can open its stores without a pre-existing <c>db/</c> directory (spec "Database base directory is
+    /// explicit").
     /// </remarks>
     /// <param name="configuration">The application configuration.</param>
-    /// <param name="contentRootPath">The host content root, used to locate the repository root.</param>
+    /// <param name="contentRootPath">
+    /// The host content root; the fallback base for relative data sources when <c>Data:DbBasePath</c> is unset.
+    /// </param>
     /// <param name="connectionStringName">The <c>ConnectionStrings</c> key to read, e.g. <c>AuthDb</c> or <c>CmsDb</c>.</param>
-    /// <returns>The connection string, with relative data sources resolved against the repository root.</returns>
+    /// <returns>
+    /// The connection string, with relative data sources resolved against <c>Data:DbBasePath</c> or the content root.
+    /// </returns>
     /// <exception cref="InvalidOperationException">
     /// <c>ConnectionStrings:{connectionStringName}</c> is not configured.
     /// </exception>
@@ -134,41 +141,14 @@ public partial class Program
             return connectionString;
         }
 
-        var repositoryRoot = FindRepositoryRoot(contentRootPath);
-        if (repositoryRoot is null)
-        {
-            // Published deployments ship without the QueueApi.slnx marker; the relative path then resolves
-            // against the process working directory, so surface the assumption instead of failing silently.
-            Console.Error.WriteLine(
-                "[Warning] Could not locate the repository root (QueueApi.slnx) to resolve the relative "
-                + $"database path '{builder.DataSource}'; it will be resolved against the working "
-                + "directory. Configure an absolute path for non-repo deployments.");
-            return connectionString;
-        }
+        var basePath = configuration["Data:DbBasePath"];
+        var baseDirectory = string.IsNullOrWhiteSpace(basePath)
+            ? contentRootPath
+            : Path.GetFullPath(Path.IsPathRooted(basePath) ? basePath : Path.Combine(contentRootPath, basePath));
 
-        builder.DataSource = Path.GetFullPath(Path.Combine(repositoryRoot, builder.DataSource));
+        builder.DataSource = Path.Combine(baseDirectory, builder.DataSource);
+        Directory.CreateDirectory(Path.GetDirectoryName(builder.DataSource)!);
         return builder.ToString();
-    }
-
-    /// <summary>
-    /// Walks up from <paramref name="startPath"/> looking for the repository marker file <c>QueueApi.slnx</c>.
-    /// </summary>
-    /// <param name="startPath">The directory where the walk starts.</param>
-    /// <returns>The repository root directory, or <see langword="null"/> when the marker is not found.</returns>
-    internal static string? FindRepositoryRoot(string startPath)
-    {
-        var directory = new DirectoryInfo(startPath);
-        while (directory is not null)
-        {
-            if (File.Exists(Path.Combine(directory.FullName, "QueueApi.slnx")))
-            {
-                return directory.FullName;
-            }
-
-            directory = directory.Parent;
-        }
-
-        return null;
     }
 
     /// <summary>

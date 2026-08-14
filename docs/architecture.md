@@ -31,6 +31,8 @@ Persistence uses `sqlite` relational databases accessed via **EF Core** (per the
 - **Implemented:** the shared credential store (`db/queue-auth.db`, `Users` table) holding username + PBKDF2 password hash per user, configured via `ConnectionStrings:AuthDb` and provisioned idempotently by `scripts/init-db.sh`.
 - **Implemented:** the dedicated CMS database (`db/queue-cms.db`) holding the `cms_event_log` outbox and the `cms_entities` store, configured via `ConnectionStrings:CmsDb` and created automatically at startup (`EnsureCreated`, no init step). SQLite WAL journal mode and a busy timeout are enabled so the webhook's writes and the outbox worker's writes coexist on the single-writer file.
 
+Relative `Data Source=` values resolve against the configured `Data:DbBasePath`, falling back to the application's content root — in local development the web project's content root is its own directory, so the stores land under `src/CmsWebhook/CmsWebhook.Api/db/`. Absolute and `:memory:` data sources are used as-is, and the resolved directory is created at startup when missing. There is **no repository-marker walk** (the `QueueApi.slnx` hunt is gone): a published deployment simply points `Data__DbBasePath` (or `ConnectionStrings__*`) at a writable location through environment variables — see [Configuration](configuration.md).
+
 Caching is out of scope.
 
 ### Performance

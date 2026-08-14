@@ -12,9 +12,12 @@ A platform-agnostic **.NET 9** API solution that accepts messages from an extern
 # from the project root
 dotnet restore
 dotnet build
-./scripts/init-db.sh # one-time: seeds the local credential store (db/queue-auth.db) with the cms-webhook user
+./scripts/init-db.sh # one-time: seeds the local credential store (src/CmsWebhook/CmsWebhook.Api/db/queue-auth.db) with the cms-webhook user
 dotnet run --project src/CmsWebhook/CmsWebhook.Api
 ```
+
+> The local stores resolve against the API project's `db/` directory (relative data sources are resolved
+> against `Data:DbBasePath` or the content root — see [Configuration](docs/configuration.md)).
 
 The API starts on `http://127.0.0.1:5264` and fails fast at startup if the credential store is missing or the CMS database is unreachable.
 
@@ -30,6 +33,18 @@ curl -u cms-webhook:0f6c3c5a-9b2e-4f7d-8a1c-2e5b9d7f3a61 -X POST \
 ```
 
 > The password above is the local-development default — DO NOT use it outside local development. Serve production over TLS (HTTPS). See [Configuration](docs/configuration.md).
+
+## Deployment
+
+The API is a plain .NET publish with no repository-marker dependency — `dotnet publish` and run the produced executable from any directory. Before starting, point the stores at writable locations and select the environment via environment variables (full chain and matrix in [Configuration](docs/configuration.md)):
+
+```bash
+export ASPNETCORE_ENVIRONMENT=Production   # or Staging
+export Data__DbBasePath=/var/lib/queue-api
+export ConnectionStrings__AuthDb="Data Source=/var/lib/queue-api/auth.db"
+export ConnectionStrings__CmsDb="Data Source=/var/lib/queue-api/cms.db;Default Timeout=30"
+# secrets are never committed: user-secrets in Development, environment variables in Staging/Production
+```
 
 ## Continuous Integration
 

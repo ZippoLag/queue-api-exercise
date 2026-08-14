@@ -1,4 +1,3 @@
-using System.Text;
 using FluentAssertions;
 using Microsoft.Data.Sqlite;
 using Microsoft.Extensions.Configuration;
@@ -10,9 +9,9 @@ namespace CmsWebhook.Api.Tests;
 /// </summary>
 /// <remarks>
 /// The integration tests cover the happy path (relative appsettings data sources resolve against the
-/// repository root on every factory start); these tests pin the remaining branches: absolute and
-/// in-memory data sources pass through untouched, and a content root outside the repository falls back
-/// to the working directory with a warning.
+/// content root on every factory start); these tests pin the remaining branches: absolute and in-memory
+/// data sources pass through untouched, and relative data sources resolve against
+/// <c>Data:DbBasePath</c> (falling back to the content root), creating the target directory when missing.
 /// </remarks>
 public class ProgramConfigurationTests
 {
@@ -40,8 +39,8 @@ public class ProgramConfigurationTests
     /// Verifies an absolute data source is returned unchanged.
     /// </summary>
     /// <remarks>
-    /// Absolute paths are the canonical non-repo deployment form (design: "Configure an absolute path
-    /// for non-repo deployments"); nothing may be prepended to them.
+    /// Absolute paths are the canonical deployment form (spec: "Absolute data source is used as-is");
+    /// nothing may be prepended to them and no directory is created on their behalf.
     /// </remarks>
     [Fact]
     public void ResolveConnectionString_WithAbsoluteDataSource_ReturnsUnchanged()
@@ -58,8 +57,8 @@ public class ProgramConfigurationTests
     /// Verifies an in-memory data source is returned unchanged.
     /// </summary>
     /// <remarks>
-    /// <c>:memory:</c> is a special SQLite data source that must not be resolved against the repository
-    /// root; it is used by tests and ephemeral tooling.
+    /// <c>:memory:</c> is a special SQLite data source that must not be resolved against a base directory;
+    /// it is used by tests and ephemeral tooling (spec: "In-memory data source is used as-is").
     /// </remarks>
     [Fact]
     public void ResolveConnectionString_WithInMemoryDataSource_ReturnsUnchanged()
@@ -72,83 +71,112 @@ public class ProgramConfigurationTests
     }
 
     /// <summary>
-    /// Verifies a relative data source is resolved against the repository root, regardless of the content root.
+    /// Verifies an empty data source is returned unchanged.
     /// </summary>
     /// <remarks>
-    /// Source business rule: the documented "run from the repo root" flow must work from any working
-    /// directory; the repository marker <c>QueueApi.slnx</c> anchors the walk (design D2/D3).
+    /// A connection string with no data source has nothing to resolve; it must pass through untouched
+    /// rather than being joined onto the base directory.
     /// </remarks>
     [Fact]
-    public void ResolveConnectionString_WithRelativeDataSource_ResolvesAgainstRepositoryRoot()
+    public void ResolveConnectionString_WithEmptyDataSource_ReturnsUnchanged()
     {
-        var repositoryRoot = FindRepositoryRoot();
-        var contentRoot = Path.Combine(repositoryRoot, "src", "CmsWebhook", "CmsWebhook.Api");
-        var config = ConfigWithConnectionString("TestDb", "Data Source=db/queue-test.db");
+        var config = ConfigWithConnectionString("TestDb", "Data Source=");
 
-        var result = Program.ResolveConnectionString(config, contentRoot, "TestDb");
+        var result = Program.ResolveConnectionString(config, Path.GetTempPath(), "TestDb");
 
-        new SqliteConnectionStringBuilder(result).DataSource
-            .Should().Be(Path.Combine(repositoryRoot, "db", "queue-test.db"));
+        result.Should().Be("Data Source=");
     }
 
     /// <summary>
-    /// Verifies a relative data source with no repository marker above the content root is left untouched
-    /// and surfaces a warning.
+    /// Verifies a relative data source resolves against the configured absolute <c>Data:DbBasePath</c>.
     /// </summary>
     /// <remarks>
-    /// Published deployments ship without the <c>QueueApi.slnx</c> marker; the relative path then resolves
-    /// against the process working directory, so the assumption is surfaced instead of failing silently.
+    /// Source business rule: spec "Relative data source resolves against the configured base directory" —
+    /// the deployment knob that removes the dependency on a repository marker file.
     /// </remarks>
     [Fact]
-    public void ResolveConnectionString_WithoutRepositoryRoot_WarnsAndReturnsUnchanged()
+    public void ResolveConnectionString_WithRelativeDataSourceAndConfiguredBasePath_ResolvesAgainstBasePath()
     {
-        var tempRoot = Directory.CreateTempSubdirectory("queue-api-no-repo-");
-        try
-        {
-            var config = ConfigWithConnectionString("TestDb", "Data Source=relative/queue.db");
-            var previousError = Console.Error;
-            using var capturedError = new StringWriter();
-            Console.SetError(capturedError);
-            try
-            {
-                var result = Program.ResolveConnectionString(config, tempRoot.FullName, "TestDb");
+        using var tempRoot = new TemporaryDirectory("queue-api-base-");
+        var config = ConfigWithConnectionString("TestDb", "Data Source=db/queue-test.db", tempRoot.FullName);
 
-                result.Should().Be("Data Source=relative/queue.db");
-            }
-            finally
-            {
-                Console.SetError(previousError);
-            }
+        var result = Program.ResolveConnectionString(config, Path.GetTempPath(), "TestDb");
 
-            capturedError.ToString().Should().Contain("Could not locate the repository root");
-        }
-        finally
-        {
-            tempRoot.Delete(recursive: true);
-        }
+        new SqliteConnectionStringBuilder(result).DataSource
+            .Should().Be(Path.Combine(tempRoot.FullName, "db", "queue-test.db"));
     }
 
-    private static IConfiguration ConfigWithConnectionString(string name, string value)
-        => new ConfigurationBuilder()
-            .AddInMemoryCollection(new Dictionary<string, string?>
-            {
-                [$"ConnectionStrings:{name}"] = value,
-            })
-            .Build();
-
-    private static string FindRepositoryRoot()
+    /// <summary>
+    /// Verifies a relative <c>Data:DbBasePath</c> resolves against the content root before joining the data source.
+    /// </summary>
+    /// <remarks>
+    /// Relative base paths are resolved against the content root (design "Relative Data:DbBasePath
+    /// confusion" risk); this keeps a short base path like <c>databases</c> meaningful from any content root.
+    /// </remarks>
+    [Fact]
+    public void ResolveConnectionString_WithRelativeBasePath_ResolvesAgainstContentRoot()
     {
-        var directory = new DirectoryInfo(AppContext.BaseDirectory);
-        while (directory is not null)
-        {
-            if (File.Exists(Path.Combine(directory.FullName, "QueueApi.slnx")))
-            {
-                return directory.FullName;
-            }
+        using var contentRoot = new TemporaryDirectory("queue-api-content-");
+        var config = ConfigWithConnectionString("TestDb", "Data Source=store.db", "databases");
 
-            directory = directory.Parent;
+        var result = Program.ResolveConnectionString(config, contentRoot.FullName, "TestDb");
+
+        new SqliteConnectionStringBuilder(result).DataSource
+            .Should().Be(Path.Combine(contentRoot.FullName, "databases", "store.db"));
+    }
+
+    /// <summary>
+    /// Verifies a relative data source with no base path configured resolves against the content root.
+    /// </summary>
+    /// <remarks>
+    /// Source business rule: spec "When no base directory is configured, relative data sources SHALL
+    /// resolve against the application's content root" — the behavior that makes a deployment directory
+    /// (with no repository marker) work out of the box.
+    /// </remarks>
+    [Fact]
+    public void ResolveConnectionString_WithRelativeDataSourceAndNoBasePath_ResolvesAgainstContentRoot()
+    {
+        using var contentRoot = new TemporaryDirectory("queue-api-content-");
+        var config = ConfigWithConnectionString("TestDb", "Data Source=db/queue-test.db");
+
+        var result = Program.ResolveConnectionString(config, contentRoot.FullName, "TestDb");
+
+        new SqliteConnectionStringBuilder(result).DataSource
+            .Should().Be(Path.Combine(contentRoot.FullName, "db", "queue-test.db"));
+    }
+
+    /// <summary>
+    /// Verifies the resolved directory is created when it does not exist yet.
+    /// </summary>
+    /// <remarks>
+    /// Source business rule: spec "Database directory is created when missing" — a fresh checkout or
+    /// deployment has no <c>db/</c> directory, so startup creates it before the store is opened.
+    /// </remarks>
+    [Fact]
+    public void ResolveConnectionString_WithRelativeDataSource_CreatesMissingDirectory()
+    {
+        using var tempRoot = new TemporaryDirectory("queue-api-base-");
+        var nestedTarget = Path.Combine(tempRoot.FullName, "deep", "nested");
+        var config = ConfigWithConnectionString("TestDb", "Data Source=store.db", nestedTarget);
+
+        _ = Program.ResolveConnectionString(config, Path.GetTempPath(), "TestDb");
+
+        Directory.Exists(nestedTarget).Should().BeTrue();
+    }
+
+    private static IConfiguration ConfigWithConnectionString(string name, string value, string? basePath = null)
+    {
+        var values = new Dictionary<string, string?>
+        {
+            [$"ConnectionStrings:{name}"] = value,
+        };
+        if (basePath is not null)
+        {
+            values["Data:DbBasePath"] = basePath;
         }
 
-        throw new InvalidOperationException("Test must run inside the repository to locate QueueApi.slnx.");
+        return new ConfigurationBuilder()
+            .AddInMemoryCollection(values)
+            .Build();
     }
 }

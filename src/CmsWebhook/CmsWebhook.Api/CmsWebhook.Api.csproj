@@ -2,6 +2,9 @@
 
   <PropertyGroup>
     <GenerateDocumentationFile>true</GenerateDocumentationFile>
+    <!-- Enables `dotnet user-secrets` for Development; user-secrets are ignored in other environments by
+         the default configuration chain (spec "Configuration precedence chain"). -->
+    <UserSecretsId>9ed01328-c0fd-4520-8e1c-156c1c7c717d</UserSecretsId>
   </PropertyGroup>
 
   <ItemGroup>

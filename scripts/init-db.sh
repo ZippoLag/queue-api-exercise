@@ -13,7 +13,10 @@ set -euo pipefail
 SCRIPT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
 REPO_ROOT="$(cd "$SCRIPT_DIR/.." && pwd)"
 
-DB_PATH="${DB_PATH:-$REPO_ROOT/db/queue-auth.db}"
+# Default matches the API's own resolution: relative data sources resolve against the content root,
+# which for the web project is its project directory (src/CmsWebhook/CmsWebhook.Api), where the
+# credential store now lives (see docs/configuration.md).
+DB_PATH="${DB_PATH:-$REPO_ROOT/src/CmsWebhook/CmsWebhook.Api/db/queue-auth.db}"
 USERNAME="${1:-cms-webhook}"
 PASSWORD="${2:-0f6c3c5a-9b2e-4f7d-8a1c-2e5b9d7f3a61}"
 
