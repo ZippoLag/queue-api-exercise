@@ -1,0 +1,185 @@
+{
+  "cloneGroups": [
+    {
+      "type": "exact",
+      "similarity": 1,
+      "instances": [
+        {
+          "file": "tests/CmsWebhook/CmsWebhook.Api.Tests/CmsWebhookApiAuthTests.cs",
+          "functionName": "WaitForEventProcessedAsync",
+          "className": "CmsWebhookApiAuthTests",
+          "startLine": 299,
+          "endLine": 317
+        },
+        {
+          "file": "tests/CmsWebhook/CmsWebhook.Api.Tests/CmsWebhookApiEventIngestionTests.cs",
+          "functionName": "WaitForEventProcessedAsync",
+          "className": "CmsWebhookApiEventIngestionTests",
+          "startLine": 233,
+          "endLine": 251
+        }
+      ],
+      "lineCount": 19
+    },
+    {
+      "type": "near",
+      "similarity": 0.8,
+      "instances": [
+        {
+          "file": "tests/CmsWebhook/CmsWebhook.Api.Tests/CmsWebhookApiAuthTests.cs",
+          "functionName": "PostEvents_WithValidNonCmsCredentials_ReturnsForbidden",
+          "className": "CmsWebhookApiAuthTests",
+          "startLine": 152,
+          "endLine": 166
+        },
+        {
+          "file": "tests/CmsWebhook/CmsWebhook.Api.Tests/CmsWebhookApiEventIngestionTests.cs",
+          "functionName": "PostEvents_WithValidNonCmsCredentials_ReturnsForbidden",
+          "className": "CmsWebhookApiEventIngestionTests",
+          "startLine": 38,
+          "endLine": 51
+        }
+      ],
+      "lineCount": 15
+    },
+    {
+      "type": "near",
+      "similarity": 0.76,
+      "instances": [
+        {
+          "file": "tests/CmsWebhook/CmsWebhook.Application.Tests/CmsEventProcessingRulesTests.cs",
+          "functionName": "Apply_IdenticalTupleAlreadyProcessed_ReturnsNoOp",
+          "className": "CmsEventProcessingRulesTests",
+          "startLine": 69,
+          "endLine": 78
+        },
+        {
+          "file": "tests/CmsWebhook/CmsWebhook.Application.Tests/CmsEventProcessingRulesTests.cs",
+          "functionName": "Apply_PublishThenUnPublishSameVersion_FlipsToUnpublished",
+          "className": "CmsEventProcessingRulesTests",
+          "startLine": 84,
+          "endLine": 95
+        },
+        {
+          "file": "tests/CmsWebhook/CmsWebhook.Application.Tests/CmsEventProcessingRulesTests.cs",
+          "functionName": "Apply_UpdateSameVersion_KeepsPublishedFlag",
+          "className": "CmsEventProcessingRulesTests",
+          "startLine": 117,
+          "endLine": 127
+        }
+      ],
+      "lineCount": 10
+    },
+    {
+      "type": "near",
+      "similarity": 0.77,
+      "instances": [
+        {
+          "file": "tests/CmsWebhook/CmsWebhook.Api.Tests/CmsWebhookApiAuthTests.cs",
+          "functionName": "PostEvents_WithoutAuthorizationHeader_ReturnsUnauthorized",
+          "className": "CmsWebhookApiAuthTests",
+          "startLine": 26,
+          "endLine": 38
+        },
+        {
+          "file": "tests/CmsWebhook/CmsWebhook.Api.Tests/CmsWebhookApiOpenApiTests.cs",
+          "functionName": "PostEvents_WithoutAuthorization_ReturnsUnauthorized",
+          "className": "CmsWebhookApiOpenApiTests",
+          "startLine": 107,
+          "endLine": 116
+        }
+      ],
+      "lineCount": 13
+    },
+    {
+      "type": "near",
+      "similarity": 0.74,
+      "instances": [
+        {
+          "file": "src/Shared/QueueApi.Auth/DbUserCredentialsProvider.cs",
+          "functionName": "UserExistsAsync",
+          "className": "DbUserCredentialsProvider",
+          "startLine": 45,
+          "endLine": 55
+        },
+        {
+          "file": "src/Shared/QueueApi.Auth/DbUserCredentialsProvider.cs",
+          "functionName": "FindUserAsync",
+          "className": "DbUserCredentialsProvider",
+          "startLine": 57,
+          "endLine": 67
+        }
+      ],
+      "lineCount": 11
+    },
+    {
+      "type": "near",
+      "similarity": 0.7,
+      "instances": [
+        {
+          "file": "tests/Shared/QueueApi.Auth.Tests/DbUserCredentialsProviderTests.cs",
+          "functionName": "VerifyCredentialsAsync_WithCorrectPassword_ReturnsTrue",
+          "className": "DbUserCredentialsProviderTests",
+          "startLine": 22,
+          "endLine": 30
+        },
+        {
+          "file": "tests/Shared/QueueApi.Auth.Tests/DbUserCredentialsProviderTests.cs",
+          "functionName": "VerifyCredentialsAsync_WithWrongPassword_ReturnsFalse",
+          "className": "DbUserCredentialsProviderTests",
+          "startLine": 38,
+          "endLine": 46
+        }
+      ],
+      "lineCount": 9
+    },
+    {
+      "type": "near",
+      "similarity": 0.7,
+      "instances": [
+        {
+          "file": "tests/Shared/QueueApi.Auth.Tests/Pbkdf2PasswordHasherTests.cs",
+          "functionName": "Verify_WithCorrectPassword_ReturnsTrue",
+          "className": "Pbkdf2PasswordHasherTests",
+          "startLine": 61,
+          "endLine": 67
+        },
+        {
+          "file": "tests/Shared/QueueApi.Auth.Tests/Pbkdf2PasswordHasherTests.cs",
+          "functionName": "Verify_HashProducedByCurrentSettings_RoundTrips",
+          "className": "Pbkdf2PasswordHasherTests",
+          "startLine": 127,
+          "endLine": 134
+        }
+      ],
+      "lineCount": 7
+    },
+    {
+      "type": "near",
+      "similarity": 0.8,
+      "instances": [
+        {
+          "file": "src/CmsWebhook/CmsWebhook.Application/IngestCmsEventsCommandHandler.cs",
+          "functionName": "IngestCmsEventsCommandHandler",
+          "className": "IngestCmsEventsCommandHandler",
+          "startLine": 52,
+          "endLine": 56
+        },
+        {
+          "file": "tests/Shared/QueueApi.Auth.Tests/DbUserCredentialsProviderTests.cs",
+          "functionName": "EmptyStore",
+          "className": "EmptyStore",
+          "startLine": 194,
+          "endLine": 198
+        }
+      ],
+      "lineCount": 5
+    }
+  ],
+  "stats": {
+    "totalFunctions": 199,
+    "duplicatedFunctions": 17,
+    "duplicationRatio": 0.085,
+    "cloneGroupCount": 8
+  }
+}

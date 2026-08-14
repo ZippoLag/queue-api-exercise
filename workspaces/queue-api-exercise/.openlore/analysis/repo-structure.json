@@ -1,0 +1,495 @@
+{
+  "projectName": "queue-api-exercise",
+  "projectType": "unknown",
+  "frameworks": [
+    "GitHub Actions"
+  ],
+  "architecture": {
+    "pattern": "unknown",
+    "layers": [
+      {
+        "name": "Infrastructure Layer",
+        "purpose": "Configuration, middleware, and utilities",
+        "files": [
+          "src/CmsWebhook/CmsWebhook.Api/appsettings.json",
+          "src/CmsWebhook/CmsWebhook.Api/appsettings.Development.json"
+        ],
+        "representativeFile": "src/CmsWebhook/CmsWebhook.Api/appsettings.json"
+      }
+    ]
+  },
+  "domains": [
+    {
+      "name": "cmswebhook-application",
+      "suggestedSpecPath": "openspec/specs/cmswebhook-application/spec.md",
+      "files": [
+        "src/CmsWebhook/CmsWebhook.Application/ICmsEventLogRepository.cs",
+        "src/CmsWebhook/CmsWebhook.Application/ICmsEntityRepository.cs",
+        "src/CmsWebhook/CmsWebhook.Application/IngestCmsEventsCommandHandler.cs",
+        "src/CmsWebhook/CmsWebhook.Application/CmsEventProcessingRules.cs",
+        "src/CmsWebhook/CmsWebhook.Application/ICmsEventProcessor.cs",
+        "src/CmsWebhook/CmsWebhook.Application/IOutboxNotifier.cs",
+        "src/CmsWebhook/CmsWebhook.Application/CmsWebhook.Application.csproj"
+      ],
+      "entities": [
+        "ICmsEventLogRepository",
+        "ICmsEntityRepository",
+        "IngestCmsEventsCommandHandler",
+        "CmsEventProcessingRules",
+        "ICmsEventProcessor"
+      ],
+      "keyFile": "src/CmsWebhook/CmsWebhook.Application/ICmsEventLogRepository.cs"
+    },
+    {
+      "name": "queueapi-auth",
+      "suggestedSpecPath": "openspec/specs/queueapi-auth/spec.md",
+      "files": [
+        "src/Shared/QueueApi.Auth/DbUserCredentialsProvider.cs",
+        "src/Shared/QueueApi.Auth/BasicAuthenticationHandler.cs",
+        "src/Shared/QueueApi.Auth/BasicAuthenticationDefaults.cs",
+        "src/Shared/QueueApi.Auth/BasicAuthenticationServiceCollectionExtensions.cs",
+        "src/Shared/QueueApi.Auth/AuthDbContext.cs",
+        "src/Shared/QueueApi.Auth/BasicAuthenticationOptions.cs",
+        "src/Shared/QueueApi.Auth/IUserCredentialsProvider.cs",
+        "src/Shared/QueueApi.Auth/QueueApi.Auth.csproj",
+        "src/Shared/QueueApi.Auth/Pbkdf2PasswordHasher.cs",
+        "src/Shared/QueueApi.Auth/UserCredential.cs"
+      ],
+      "entities": [
+        "DbUserCredentialsProvider",
+        "BasicAuthenticationHandler",
+        "BasicAuthenticationDefaults",
+        "BasicAuthenticationServiceCollectionExtensions",
+        "AuthDbContext"
+      ],
+      "keyFile": "src/Shared/QueueApi.Auth/DbUserCredentialsProvider.cs"
+    },
+    {
+      "name": "cmswebhook-infrastructure",
+      "suggestedSpecPath": "openspec/specs/cmswebhook-infrastructure/spec.md",
+      "files": [
+        "src/CmsWebhook/CmsWebhook.Infrastructure/CmsDbContext.cs",
+        "src/CmsWebhook/CmsWebhook.Infrastructure/EfCmsEventLogRepository.cs",
+        "src/CmsWebhook/CmsWebhook.Infrastructure/EfCmsEntityRepository.cs",
+        "src/CmsWebhook/CmsWebhook.Infrastructure/CmsServiceCollectionExtensions.cs",
+        "src/CmsWebhook/CmsWebhook.Infrastructure/EfCmsEventProcessor.cs",
+        "src/CmsWebhook/CmsWebhook.Infrastructure/CmsEventProcessorWorker.cs",
+        "src/CmsWebhook/CmsWebhook.Infrastructure/OutboxChannel.cs",
+        "src/CmsWebhook/CmsWebhook.Infrastructure/CmsWebhook.Infrastructure.csproj"
+      ],
+      "entities": [
+        "CmsDbContext",
+        "EfCmsEventLogRepository",
+        "EfCmsEntityRepository",
+        "CmsServiceCollectionExtensions",
+        "EfCmsEventProcessor"
+      ],
+      "keyFile": "src/CmsWebhook/CmsWebhook.Infrastructure/CmsDbContext.cs"
+    },
+    {
+      "name": "api",
+      "suggestedSpecPath": "openspec/specs/api/spec.md",
+      "files": [
+        "src/CmsWebhook/CmsWebhook.Api/Endpoints/CmsEventEndpoints.cs",
+        "src/CmsWebhook/CmsWebhook.Api/Endpoints/HealthEndpoints.cs"
+      ],
+      "entities": [
+        "CmsEventEndpoints",
+        "HealthEndpoints"
+      ],
+      "keyFile": "src/CmsWebhook/CmsWebhook.Api/Endpoints/CmsEventEndpoints.cs"
+    },
+    {
+      "name": "cmswebhook-domain",
+      "suggestedSpecPath": "openspec/specs/cmswebhook-domain/spec.md",
+      "files": [
+        "src/CmsWebhook/CmsWebhook.Domain/CmsEntity.cs",
+        "src/CmsWebhook/CmsWebhook.Domain/CmsRequestValidator.cs",
+        "src/CmsWebhook/CmsWebhook.Domain/CmsEvent.cs",
+        "src/CmsWebhook/CmsWebhook.Domain/CmsRequest.cs",
+        "src/CmsWebhook/CmsWebhook.Domain/CmsWebhook.Domain.csproj",
+        "src/CmsWebhook/CmsWebhook.Domain/CmsEventType.cs",
+        "src/CmsWebhook/CmsWebhook.Domain/CmsEventStatus.cs"
+      ],
+      "entities": [
+        "CmsEntity",
+        "CmsRequestValidator",
+        "CmsEvent",
+        "CmsRequest",
+        "CmsWebhookDomain"
+      ],
+      "keyFile": "src/CmsWebhook/CmsWebhook.Domain/CmsEntity.cs"
+    },
+    {
+      "name": "authdbinit",
+      "suggestedSpecPath": "openspec/specs/authdbinit/spec.md",
+      "files": [
+        "tools/AuthDbInit/AuthDbInitializer.cs",
+        "tools/AuthDbInit/AuthDbInit.csproj",
+        "tools/AuthDbInit/Cli.cs",
+        "tools/AuthDbInit/Program.cs"
+      ],
+      "entities": [
+        "AuthDbInitializer",
+        "AuthDbInit",
+        "Cli",
+        "Program"
+      ],
+      "keyFile": "tools/AuthDbInit/AuthDbInitializer.cs"
+    },
+    {
+      "name": "cmswebhook-api",
+      "suggestedSpecPath": "openspec/specs/cmswebhook-api/spec.md",
+      "files": [
+        "src/CmsWebhook/CmsWebhook.Api/CmsWebhook.Api.csproj",
+        "src/CmsWebhook/CmsWebhook.Api/Program.cs"
+      ],
+      "entities": [
+        "CmsWebhookApi",
+        "Program"
+      ],
+      "keyFile": "src/CmsWebhook/CmsWebhook.Api/CmsWebhook.Api.csproj"
+    },
+    {
+      "name": "authdbinit-tests",
+      "suggestedSpecPath": "openspec/specs/authdbinit-tests/spec.md",
+      "files": [
+        "tools/AuthDbInit.Tests/AuthDbInitializerTests.cs",
+        "tools/AuthDbInit.Tests/AuthDbInit.Tests.csproj",
+        "tools/AuthDbInit.Tests/CliTests.cs"
+      ],
+      "entities": [
+        "AuthDbInitializerTests",
+        "AuthDbInitTests",
+        "CliTests"
+      ],
+      "keyFile": "tools/AuthDbInit.Tests/AuthDbInitializerTests.cs"
+    },
+    {
+      "name": "properties",
+      "suggestedSpecPath": "openspec/specs/properties/spec.md",
+      "files": [
+        "src/CmsWebhook/CmsWebhook.Api/Properties/launchSettings.json",
+        "src/CmsWebhook/CmsWebhook.Infrastructure/Properties/AssemblyInfo.cs",
+        "src/CmsWebhook/CmsWebhook.Api/Properties/AssemblyInfo.cs"
+      ],
+      "entities": [
+        "LaunchSettings",
+        "AssemblyInfo"
+      ],
+      "keyFile": "src/CmsWebhook/CmsWebhook.Api/Properties/launchSettings.json"
+    },
+    {
+      "name": "scripts",
+      "suggestedSpecPath": "openspec/specs/scripts/spec.md",
+      "files": [
+        "scripts/init-db.sh",
+        "scripts/repair-openlore-grammar.sh",
+        "scripts/check-coverage.sh"
+      ],
+      "entities": [
+        "InitDb",
+        "RepairOpenloreGrammar",
+        "CheckCoverage"
+      ],
+      "keyFile": "scripts/init-db.sh"
+    },
+    {
+      "name": "docs",
+      "suggestedSpecPath": "openspec/specs/docs/spec.md",
+      "files": [
+        "docs/configuration.md",
+        "docs/architecture.md",
+        "docs/system_overview.drawio",
+        "docs/development-style.md",
+        "docs/dsl_glossary.md"
+      ],
+      "entities": [
+        "Configuration",
+        "Architecture",
+        "SystemOverview",
+        "DevelopmentStyle",
+        "DslGlossary"
+      ],
+      "keyFile": "docs/configuration.md"
+    },
+    {
+      "name": "workflows",
+      "suggestedSpecPath": "openspec/specs/workflows/spec.md",
+      "files": [
+        ".github/workflows/docs.yml",
+        ".github/workflows/ci.yml"
+      ],
+      "entities": [
+        "Docs"
+      ],
+      "keyFile": ".github/workflows/docs.yml"
+    },
+    {
+      "name": "cmswebhook",
+      "suggestedSpecPath": "openspec/specs/cmswebhook/spec.md",
+      "files": [
+        "src/CmsWebhook/CmsWebhook.Api/CmsWebhook.Api.csproj",
+        "src/CmsWebhook/CmsWebhook.Domain/CmsWebhook.Domain.csproj",
+        "src/CmsWebhook/CmsWebhook.Infrastructure/CmsWebhook.Infrastructure.csproj",
+        "src/CmsWebhook/CmsWebhook.Application/CmsWebhook.Application.csproj"
+      ],
+      "entities": [
+        "CmsWebhookApi",
+        "CmsWebhookDomain",
+        "CmsWebhookInfrastructure",
+        "CmsWebhookApplication"
+      ],
+      "keyFile": "src/CmsWebhook/CmsWebhook.Api/CmsWebhook.Api.csproj"
+    },
+    {
+      "name": "cmswebhook-api-tests",
+      "suggestedSpecPath": "openspec/specs/cmswebhook-api-tests/spec.md",
+      "files": [
+        "tests/CmsWebhook/CmsWebhook.Api.Tests/CmsWebhookApiFactory.cs",
+        "tests/CmsWebhook/CmsWebhook.Api.Tests/CmsWebhookApiAuthTests.cs",
+        "tests/CmsWebhook/CmsWebhook.Api.Tests/CmsWebhookApiOpenApiTests.cs",
+        "tests/CmsWebhook/CmsWebhook.Api.Tests/CmsWebhookApiEventIngestionTests.cs",
+        "tests/CmsWebhook/CmsWebhook.Api.Tests/CmsWebhookApiHealthTests.cs",
+        "tests/CmsWebhook/CmsWebhook.Api.Tests/ProgramConfigurationTests.cs",
+        "tests/CmsWebhook/CmsWebhook.Api.Tests/InMemoryUserCredentialsProvider.cs",
+        "tests/CmsWebhook/CmsWebhook.Api.Tests/CmsWebhook.Api.Tests.csproj",
+        "tests/CmsWebhook/CmsWebhook.Api.Tests/TestParallelization.cs"
+      ],
+      "entities": [
+        "CmsWebhookApiFactory",
+        "CmsWebhookApiAuthTests",
+        "CmsWebhookApiOpenApiTests",
+        "CmsWebhookApiEventIngestionTests",
+        "CmsWebhookApiHealthTests"
+      ],
+      "keyFile": "tests/CmsWebhook/CmsWebhook.Api.Tests/CmsWebhookApiFactory.cs"
+    },
+    {
+      "name": "agents",
+      "suggestedSpecPath": "openspec/specs/agents/spec.md",
+      "files": [
+        "QueueApi.slnx",
+        "docfx.json",
+        "README.md",
+        ".gitignore",
+        "AGENTS.md",
+        "Directory.Build.props",
+        "toc.yml",
+        "index.md",
+        "global.json"
+      ],
+      "entities": [
+        "QueueApi",
+        "Docfx",
+        "README",
+        "AGENTS",
+        "DirectoryBuild"
+      ],
+      "keyFile": "QueueApi.slnx"
+    },
+    {
+      "name": "queueapi-auth-tests",
+      "suggestedSpecPath": "openspec/specs/queueapi-auth-tests/spec.md",
+      "files": [
+        "tests/Shared/QueueApi.Auth.Tests/BasicAuthenticationHandlerTests.cs",
+        "tests/Shared/QueueApi.Auth.Tests/DbUserCredentialsProviderTests.cs",
+        "tests/Shared/QueueApi.Auth.Tests/Pbkdf2PasswordHasherTests.cs",
+        "tests/Shared/QueueApi.Auth.Tests/QueueApi.Auth.Tests.csproj",
+        "tests/Shared/QueueApi.Auth.Tests/UserCredentialTests.cs"
+      ],
+      "entities": [
+        "BasicAuthenticationHandlerTests",
+        "DbUserCredentialsProviderTests",
+        "Pbkdf2PasswordHasherTests",
+        "QueueApiAuthTests",
+        "UserCredentialTests"
+      ],
+      "keyFile": "tests/Shared/QueueApi.Auth.Tests/BasicAuthenticationHandlerTests.cs"
+    },
+    {
+      "name": "cmswebhook-infrastructure-tests",
+      "suggestedSpecPath": "openspec/specs/cmswebhook-infrastructure-tests/spec.md",
+      "files": [
+        "tests/CmsWebhook/CmsWebhook.Infrastructure.Tests/CmsTestDatabase.cs",
+        "tests/CmsWebhook/CmsWebhook.Infrastructure.Tests/EfCmsEventLogRepositoryTests.cs",
+        "tests/CmsWebhook/CmsWebhook.Infrastructure.Tests/EfCmsEntityRepositoryTests.cs",
+        "tests/CmsWebhook/CmsWebhook.Infrastructure.Tests/CmsEventProcessorWorkerTests.cs",
+        "tests/CmsWebhook/CmsWebhook.Infrastructure.Tests/EfCmsEventProcessorTests.cs",
+        "tests/CmsWebhook/CmsWebhook.Infrastructure.Tests/CmsWebhook.Infrastructure.Tests.csproj"
+      ],
+      "entities": [
+        "CmsTestDatabase",
+        "EfCmsEventLogRepositoryTests",
+        "EfCmsEntityRepositoryTests",
+        "CmsEventProcessorWorkerTests",
+        "EfCmsEventProcessorTests"
+      ],
+      "keyFile": "tests/CmsWebhook/CmsWebhook.Infrastructure.Tests/CmsTestDatabase.cs"
+    },
+    {
+      "name": "cmswebhook-application-tests",
+      "suggestedSpecPath": "openspec/specs/cmswebhook-application-tests/spec.md",
+      "files": [
+        "tests/CmsWebhook/CmsWebhook.Application.Tests/CmsEventProcessingRulesTests.cs",
+        "tests/CmsWebhook/CmsWebhook.Application.Tests/IngestCmsEventsCommandHandlerTests.cs",
+        "tests/CmsWebhook/CmsWebhook.Application.Tests/CmsWebhook.Application.Tests.csproj"
+      ],
+      "entities": [
+        "CmsEventProcessingRulesTests",
+        "IngestCmsEventsCommandHandlerTests",
+        "CmsWebhookApplicationTests"
+      ],
+      "keyFile": "tests/CmsWebhook/CmsWebhook.Application.Tests/CmsEventProcessingRulesTests.cs"
+    },
+    {
+      "name": "cmswebhook-domain-tests",
+      "suggestedSpecPath": "openspec/specs/cmswebhook-domain-tests/spec.md",
+      "files": [
+        "tests/CmsWebhook/CmsWebhook.Domain.Tests/CmsRequestValidatorTests.cs",
+        "tests/CmsWebhook/CmsWebhook.Domain.Tests/CmsWebhook.Domain.Tests.csproj"
+      ],
+      "entities": [
+        "CmsRequestValidatorTests",
+        "CmsWebhookDomainTests"
+      ],
+      "keyFile": "tests/CmsWebhook/CmsWebhook.Domain.Tests/CmsRequestValidatorTests.cs"
+    }
+  ],
+  "undomained": [],
+  "entryPoints": [
+    {
+      "file": "scripts/init-db.sh",
+      "type": "application-entry",
+      "initializes": []
+    },
+    {
+      "file": "tools/AuthDbInit/Cli.cs",
+      "type": "application-entry",
+      "initializes": []
+    },
+    {
+      "file": "index.md",
+      "type": "application-entry",
+      "initializes": []
+    },
+    {
+      "file": "scripts/repair-openlore-grammar.sh",
+      "type": "application-entry",
+      "initializes": []
+    },
+    {
+      "file": "scripts/check-coverage.sh",
+      "type": "application-entry",
+      "initializes": []
+    }
+  ],
+  "dataFlow": {
+    "sources": [
+      "src/Shared/QueueApi.Auth/DbUserCredentialsProvider.cs",
+      "src/Shared/QueueApi.Auth/BasicAuthenticationHandler.cs",
+      "src/CmsWebhook/CmsWebhook.Api/Endpoints/CmsEventEndpoints.cs",
+      "src/Shared/QueueApi.Auth/BasicAuthenticationDefaults.cs",
+      "src/Shared/QueueApi.Auth/BasicAuthenticationServiceCollectionExtensions.cs",
+      "src/Shared/QueueApi.Auth/AuthDbContext.cs",
+      "src/Shared/QueueApi.Auth/BasicAuthenticationOptions.cs",
+      "src/CmsWebhook/CmsWebhook.Api/Endpoints/HealthEndpoints.cs",
+      "tests/CmsWebhook/CmsWebhook.Api.Tests/CmsWebhookApiFactory.cs",
+      "src/Shared/QueueApi.Auth/IUserCredentialsProvider.cs",
+      "src/Shared/QueueApi.Auth/QueueApi.Auth.csproj",
+      "src/CmsWebhook/CmsWebhook.Api/CmsWebhook.Api.csproj",
+      "tests/Shared/QueueApi.Auth.Tests/BasicAuthenticationHandlerTests.cs",
+      "tests/Shared/QueueApi.Auth.Tests/DbUserCredentialsProviderTests.cs",
+      "tests/CmsWebhook/CmsWebhook.Api.Tests/CmsWebhookApiAuthTests.cs",
+      "tests/CmsWebhook/CmsWebhook.Api.Tests/CmsWebhookApiOpenApiTests.cs",
+      "tests/CmsWebhook/CmsWebhook.Api.Tests/CmsWebhookApiEventIngestionTests.cs",
+      "src/CmsWebhook/CmsWebhook.Api/Properties/launchSettings.json",
+      "src/CmsWebhook/CmsWebhook.Api/appsettings.json",
+      "src/CmsWebhook/CmsWebhook.Api/appsettings.Development.json",
+      "tests/CmsWebhook/CmsWebhook.Api.Tests/CmsWebhookApiHealthTests.cs",
+      "tests/CmsWebhook/CmsWebhook.Api.Tests/ProgramConfigurationTests.cs",
+      "tests/CmsWebhook/CmsWebhook.Api.Tests/InMemoryUserCredentialsProvider.cs",
+      "src/Shared/QueueApi.Auth/Pbkdf2PasswordHasher.cs",
+      "src/CmsWebhook/CmsWebhook.Api/Program.cs",
+      "src/Shared/QueueApi.Auth/UserCredential.cs",
+      "tests/Shared/QueueApi.Auth.Tests/Pbkdf2PasswordHasherTests.cs",
+      "tests/Shared/QueueApi.Auth.Tests/QueueApi.Auth.Tests.csproj",
+      "tests/CmsWebhook/CmsWebhook.Api.Tests/CmsWebhook.Api.Tests.csproj",
+      "tests/Shared/QueueApi.Auth.Tests/UserCredentialTests.cs",
+      "src/CmsWebhook/CmsWebhook.Api/Properties/AssemblyInfo.cs",
+      "tests/CmsWebhook/CmsWebhook.Api.Tests/TestParallelization.cs"
+    ],
+    "sinks": [],
+    "transformers": [
+      "src/CmsWebhook/CmsWebhook.Infrastructure/CmsServiceCollectionExtensions.cs"
+    ]
+  },
+  "keyFiles": {
+    "schemas": [],
+    "config": [
+      "src/CmsWebhook/CmsWebhook.Api/appsettings.json",
+      "src/CmsWebhook/CmsWebhook.Api/appsettings.Development.json"
+    ],
+    "auth": [
+      "src/Shared/QueueApi.Auth/DbUserCredentialsProvider.cs",
+      "src/Shared/QueueApi.Auth/BasicAuthenticationHandler.cs",
+      "src/Shared/QueueApi.Auth/BasicAuthenticationDefaults.cs",
+      "src/Shared/QueueApi.Auth/BasicAuthenticationServiceCollectionExtensions.cs",
+      "src/Shared/QueueApi.Auth/AuthDbContext.cs",
+      "src/Shared/QueueApi.Auth/BasicAuthenticationOptions.cs",
+      "tools/AuthDbInit/AuthDbInitializer.cs",
+      "src/Shared/QueueApi.Auth/IUserCredentialsProvider.cs",
+      "src/Shared/QueueApi.Auth/QueueApi.Auth.csproj",
+      "tools/AuthDbInit.Tests/AuthDbInitializerTests.cs",
+      "tests/Shared/QueueApi.Auth.Tests/BasicAuthenticationHandlerTests.cs",
+      "tests/Shared/QueueApi.Auth.Tests/DbUserCredentialsProviderTests.cs",
+      "tests/CmsWebhook/CmsWebhook.Api.Tests/CmsWebhookApiAuthTests.cs",
+      "tools/AuthDbInit/AuthDbInit.csproj",
+      "src/Shared/QueueApi.Auth/Pbkdf2PasswordHasher.cs",
+      "src/Shared/QueueApi.Auth/UserCredential.cs",
+      "tools/AuthDbInit.Tests/AuthDbInit.Tests.csproj",
+      "tools/AuthDbInit.Tests/CliTests.cs",
+      "tools/AuthDbInit/Cli.cs",
+      "tests/Shared/QueueApi.Auth.Tests/Pbkdf2PasswordHasherTests.cs",
+      "tests/Shared/QueueApi.Auth.Tests/QueueApi.Auth.Tests.csproj",
+      "tests/Shared/QueueApi.Auth.Tests/UserCredentialTests.cs",
+      "tools/AuthDbInit/Program.cs"
+    ],
+    "database": [
+      "tools/AuthDbInit/AuthDbInitializer.cs",
+      "tools/AuthDbInit.Tests/AuthDbInitializerTests.cs",
+      "tests/CmsWebhook/CmsWebhook.Infrastructure.Tests/CmsTestDatabase.cs",
+      "tools/AuthDbInit/AuthDbInit.csproj",
+      "tools/AuthDbInit.Tests/AuthDbInit.Tests.csproj",
+      "tools/AuthDbInit.Tests/CliTests.cs",
+      "tools/AuthDbInit/Cli.cs",
+      "tools/AuthDbInit/Program.cs",
+      "db/.gitkeep"
+    ],
+    "routes": [],
+    "services": [
+      "src/Shared/QueueApi.Auth/BasicAuthenticationServiceCollectionExtensions.cs",
+      "src/CmsWebhook/CmsWebhook.Infrastructure/CmsServiceCollectionExtensions.cs"
+    ]
+  },
+  "uiComponents": [],
+  "schemas": [],
+  "routeInventory": {
+    "total": 0,
+    "byMethod": {},
+    "byFramework": {},
+    "routes": []
+  },
+  "middleware": [],
+  "envVars": [],
+  "statistics": {
+    "totalFiles": 136,
+    "analyzedFiles": 94,
+    "skippedFiles": 42,
+    "avgFileScore": 23.2,
+    "nodeCount": 94,
+    "edgeCount": 0,
+    "cycleCount": 0,
+    "clusterCount": 18
+  }
+}
