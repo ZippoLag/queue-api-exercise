@@ -29,6 +29,34 @@ curl -u cms-webhook:0f6c3c5a-9b2e-4f7d-8a1c-2e5b9d7f3a61 -X POST \
 
 > The password above is the local-development default — DO NOT use it outside local development. Serve production over TLS (HTTPS). See [Configuration](docs/configuration.md).
 
+## Continuous Integration
+
+Every push and pull request runs the **CI workflow** (`.github/workflows/ci.yml`, one lean job on `ubuntu-latest`) with these quality gates:
+
+| Gate | Enforced by | Where the threshold lives |
+|------|-------------|---------------------------|
+| Compiler/analyzer warnings fail the build | `TreatWarningsAsErrors` in root `Directory.Build.props` | — |
+| SDK family pinned | `global.json` (`.NET 9`, `rollForward: latestFeature`) | — |
+| Test suite passes with coverage collection | `dotnet test --collect:"XPlat Code Coverage"` | — |
+| **Coverage ratchet** | `scripts/check-coverage.sh` | `.config/coverage-min.txt` |
+| Spec discipline | `openspec validate --all` (pinned CLI) | — |
+
+### Reproduce the checks locally
+
+The CI steps are plain `dotnet` commands; run them in order from the repo root:
+
+```bash
+dotnet restore QueueApi.slnx
+dotnet build QueueApi.slnx --no-restore          # warnings fail the build
+dotnet test QueueApi.slnx --no-build --no-restore --collect:"XPlat Code Coverage"
+bash scripts/check-coverage.sh                   # aggregate coverage gate
+openspec validate --all                          # spec discipline gate
+```
+
+### The coverage ratchet
+
+`scripts/check-coverage.sh` aggregates every test project's `coverage.cobertura.xml`, computes the aggregate line rate, and fails when it drops below the committed threshold in `.config/coverage-min.txt` — starting at **74.5%** (the measured deterministic baseline of 74.82% minus a small margin). The number only ever moves **up**: to raise it deliberately, raise coverage, then edit the threshold file (see [Development style](docs/development-style.md)).
+
 ## Documentation
 
 - [Architecture](docs/architecture.md) — system overview, design decisions, API and event-processing semantics

@@ -33,7 +33,9 @@ A root `Directory.Build.props` sets `TreatWarningsAsErrors=true` for every proje
 
 ### 4. Coverage gate: coverlet + cobertura + a threshold script
 
-`dotnet test --collect:"XPlat Code Coverage"` (cobertura is the collector's default output format, verified). A single test run emits **one cobertura file per test project** (six for this solution), so `scripts/check-coverage.sh` must **aggregate**: glob `TestResults/**/coverage.cobertura.xml`, sum `lines-valid` and `lines-covered` across every file, compute the aggregate line rate, and fail when it is below the value in `.config/coverage-min.txt`. The threshold file is committed and starts at the **measured baseline of 75.5% (1226/1624 lines, measured during review)** — the "coverage ratchet": the gate only gets tighter.
+`dotnet test --collect:"XPlat Code Coverage"` (cobertura is the collector's default output format, verified). A single test run emits **one cobertura file per test project** (six for this solution), so `scripts/check-coverage.sh` must **aggregate**: glob `TestResults/**/coverage.cobertura.xml`, sum `lines-valid` and `lines-covered` across every file, compute the aggregate line rate, and fail when it is below the value in `.config/coverage-min.txt`. The threshold file is committed and starts at **74.5%** — the "coverage ratchet": the gate only gets tighter.
+
+- *Baseline correction during implementation:* the review-time measurement of 75.5% (1226/1624) proved to be **race-inflated**: the integration tests that post a valid event without waiting for async processing (the delete test and the valid-credentials auth test) let factory teardown cancel a mid-`ProcessAsync` worker, spurious-covering the processor's failure path. Both tests now await the event's `Processed` status before disposal, making the measurement deterministic: **74.82% (1215/1624) across ten consecutive runs**. The committed threshold is 74.5% — the stable floor minus a small margin for cross-machine variance.
 
 - *Alternative:* coverlet.msbuild inline thresholds — rejected; the number lives in a csproj, less visible and harder to raise deliberately.
 - *Alternative:* ReportGenerator dashboards — rejected; adds a dependency for presentation we don't need yet.
@@ -51,4 +53,4 @@ Install the pinned `@fission-ai/openspec` CLI as a workflow step and run `opensp
 
 ## Open Questions
 
-None — the baseline was measured during review at **75.5% aggregate line coverage (1226/1624)** and is committed as the starting threshold in `.config/coverage-min.txt`.
+None — the baseline was re-measured during implementation at the deterministic **74.82% aggregate line coverage (1215/1624)** (see decision 4 for the correction) and is committed as the starting threshold in `.config/coverage-min.txt` at 74.5%.

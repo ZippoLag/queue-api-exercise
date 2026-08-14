@@ -109,9 +109,14 @@ public class CmsWebhookApiEventIngestionTests
     }
 
     /// <summary>
-    /// Verifies a delete event without payload or version is accepted.
+    /// Verifies a delete event without payload or version is accepted and eventually processed.
     /// </summary>
-    /// <remarks>Source business rule: spec scenario "Delete without payload or version".</remarks>
+    /// <remarks>
+    /// Source business rule: spec scenario "Delete without payload or version". The event is awaited to
+    /// <see cref="CmsEventStatus.Processed"/> (delete of an unknown entity is a no-op) so this test
+    /// deterministically exercises the no-op processing path — without the wait, coverage of that path
+    /// races the async worker and the CI coverage gate flaps between runs.
+    /// </remarks>
     [Fact]
     public async Task PostEvents_DeleteWithoutPayloadOrVersion_ReturnsCreated()
     {
@@ -122,8 +127,7 @@ public class CmsWebhookApiEventIngestionTests
         var response = await client.PostAsync("/cms/events", Json("""{"type":"delete","id":"entity-1","timestamp":"2024-01-01T00:00:00Z"}"""));
 
         response.StatusCode.Should().Be(HttpStatusCode.Created);
-        using var context = factory.CreateCmsDbContext();
-        var @event = await context.Events.SingleAsync();
+        var @event = await WaitForEventProcessedAsync(factory, "entity-1");
         @event.Type.Should().Be(CmsEventType.Delete);
         @event.Version.Should().BeNull();
         @event.Payload.Should().BeNull();
@@ -217,6 +221,33 @@ public class CmsWebhookApiEventIngestionTests
         }
 
         throw new Xunit.Sdk.XunitException($"Entity '{entityId}' was not processed within the timeout.");
+    }
+
+    /// <summary>
+    /// Waits until the recorded event for the given entity id is processed by the outbox worker.
+    /// </summary>
+    /// <param name="factory">The test host whose outbox worker processes the event.</param>
+    /// <param name="entityId">The entity id the event refers to.</param>
+    /// <returns>The processed event.</returns>
+    /// <exception cref="Xunit.Sdk.XunitException">The event was not processed within the timeout.</exception>
+    private static async Task<CmsEvent> WaitForEventProcessedAsync(CmsWebhookApiFactory factory, string entityId)
+    {
+        using var context = factory.CreateCmsDbContext();
+        var deadline = DateTime.UtcNow.AddSeconds(10);
+        while (DateTime.UtcNow < deadline)
+        {
+            // AsNoTracking: the same context is polled repeatedly and a tracked entity would keep the
+            // stale in-memory status; re-reading without tracking sees the worker's update.
+            var @event = await context.Events.AsNoTracking().SingleOrDefaultAsync(item => item.EntityId == entityId);
+            if (@event is not null && @event.Status == CmsEventStatus.Processed)
+            {
+                return @event;
+            }
+
+            await Task.Delay(100);
+        }
+
+        throw new Xunit.Sdk.XunitException($"Event for entity '{entityId}' was not processed within the timeout.");
     }
 
     private static string ValidPublish(string id, int version = 1)

@@ -1,6 +1,7 @@
 using System.Net;
 using System.Net.Http.Headers;
 using System.Text;
+using CmsWebhook.Domain;
 using FluentAssertions;
 using Microsoft.EntityFrameworkCore;
 using QueueApi.Auth;
@@ -118,12 +119,15 @@ public class CmsWebhookApiAuthTests
     }
 
     /// <summary>
-    /// Verifies a request with valid cms credentials succeeds.
+    /// Verifies a request with valid cms credentials succeeds and the event is eventually processed.
     /// </summary>
     /// <remarks>
     /// Source business rule: spec "Only the cms user is authorized", scenario
     /// "Valid credentials for the cms user"; spec "Credentials are sourced from the credential store",
-    /// scenario "Credential store is initialized".
+    /// scenario "Credential store is initialized". The event is awaited to
+    /// <see cref="CmsEventStatus.Processed"/> so the worker finishes before the factory is disposed —
+    /// without the wait, teardown can cancel a mid-processing worker and the CI coverage gate flaps
+    /// between runs.
     /// </remarks>
     [Fact]
     public async Task PostEvents_WithValidCmsCredentials_ReturnsCreated()
@@ -135,6 +139,7 @@ public class CmsWebhookApiAuthTests
         var response = await client.PostAsync("/cms/events", Json(ValidPublish()));
 
         response.StatusCode.Should().Be(HttpStatusCode.Created);
+        await WaitForEventProcessedAsync(factory, "entity-1");
     }
 
     /// <summary>
@@ -258,6 +263,33 @@ public class CmsWebhookApiAuthTests
         using var context = new AuthDbContext(options);
         context.Database.EnsureCreated();
         return databasePath;
+    }
+
+    /// <summary>
+    /// Waits until the recorded event for the given entity id is processed by the outbox worker.
+    /// </summary>
+    /// <param name="factory">The test host whose outbox worker processes the event.</param>
+    /// <param name="entityId">The entity id the event refers to.</param>
+    /// <returns>The processed event.</returns>
+    /// <exception cref="Xunit.Sdk.XunitException">The event was not processed within the timeout.</exception>
+    private static async Task<CmsEvent> WaitForEventProcessedAsync(CmsWebhookApiFactory factory, string entityId)
+    {
+        using var context = factory.CreateCmsDbContext();
+        var deadline = DateTime.UtcNow.AddSeconds(10);
+        while (DateTime.UtcNow < deadline)
+        {
+            // AsNoTracking: the same context is polled repeatedly and a tracked entity would keep the
+            // stale in-memory status; re-reading without tracking sees the worker's update.
+            var @event = await context.Events.AsNoTracking().SingleOrDefaultAsync(item => item.EntityId == entityId);
+            if (@event is not null && @event.Status == CmsEventStatus.Processed)
+            {
+                return @event;
+            }
+
+            await Task.Delay(100);
+        }
+
+        throw new Xunit.Sdk.XunitException($"Event for entity '{entityId}' was not processed within the timeout.");
     }
 
     private static AuthenticationHeaderValue Basic(string username, string password)

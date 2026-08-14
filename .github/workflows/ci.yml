@@ -1,0 +1,35 @@
+name: CI
+
+on:
+  push:
+  pull_request:
+
+jobs:
+  build-and-test:
+    name: Build, test, and quality gates
+    runs-on: ubuntu-latest
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+
+      - name: Setup .NET SDK
+        uses: actions/setup-dotnet@v4
+        with:
+          global-json-file: global.json
+
+      - name: Restore
+        run: dotnet restore QueueApi.slnx
+
+      - name: Build (warnings are errors)
+        run: dotnet build QueueApi.slnx --no-restore
+
+      - name: Test with coverage collection
+        run: dotnet test QueueApi.slnx --no-build --no-restore --collect:"XPlat Code Coverage"
+
+      - name: Coverage gate
+        run: bash scripts/check-coverage.sh
+
+      - name: Validate OpenSpec
+        run: |
+          npm install -g @fission-ai/openspec@1.8.0
+          openspec validate --all
