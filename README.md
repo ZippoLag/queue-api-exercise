@@ -55,7 +55,7 @@ openspec validate --all                          # spec discipline gate
 
 ### The coverage ratchet
 
-`scripts/check-coverage.sh` merges every test project's `coverage.cobertura.xml` into a **unique-line union** — each source line counts once, covered if *any* test project covers it (the honest "every line tested by someone" measure; per-report summing would double-count shared assemblies) — and fails when the rate drops below the committed threshold in `.config/coverage-min.txt` (**95.1%**, currently measuring 100.00%). The number only ever moves **up**: to raise it deliberately, raise coverage, then edit the threshold file (see [Development style](docs/development-style.md)).
+`scripts/check-coverage.sh` merges every test project's `coverage.cobertura.xml` into a **unique-line union** — each source line counts once, covered if *any* test project covers it (the honest "every line tested by someone" measure; per-report summing would double-count shared assemblies) — and fails when the rate drops below the committed threshold in `.config/coverage-min.txt` (**100.0%** — the measured rate is deterministic at 100.00%, so any uncovered line now fails CI). The number only ever moves **up**: to raise it deliberately, raise coverage, then edit the threshold file (see [Development style](docs/development-style.md)).
 
 ## Documentation
 

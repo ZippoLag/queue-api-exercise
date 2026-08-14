@@ -57,13 +57,13 @@ Every push and pull request is verified by `.github/workflows/ci.yml` (see the R
 
 ### Raising the coverage threshold
 
-The committed number in `.config/coverage-min.txt` is a **ratchet**: it currently sits at **95.1%** and only rises — a coverage regression fails CI, never silently passes. To raise it deliberately:
+The committed number in `.config/coverage-min.txt` is a **ratchet**: it currently sits at **100.0%** — the union metric measures deterministically at 100.00% (716/716) across consecutive runs, so any newly-added uncovered line fails CI. To raise (or, in the future, adjust) it deliberately:
 
 1. Improve coverage (new tests) and run `bash scripts/check-coverage.sh` to confirm the new unique-line rate.
 2. Edit `.config/coverage-min.txt` to a value at or below the new measured rate (leave a small margin for machine-to-machine variance).
 3. Commit the threshold change together with the tests that justify it.
 
-The union metric is **deterministic**: repeated runs report the same unique-line rate (the current tree measures 100.00%, 716/716 across consecutive runs). Two practices keep it that way: integration tests that record events wait for the async outbox worker to finish (e.g. await the event's `Processed` status with `AsNoTracking`) before disposing the test factory, and the entry-point shims (`tools/AuthDbInit/Program.cs`, exercised via the assembly entry point; `CmsWebhook.Api/Program.cs`, exercised through `WebApplicationFactory`) are covered rather than excluded.
+The union metric is **deterministic**: repeated runs report the same unique-line rate (100.00%, 716/716 across consecutive runs). Two practices keep it that way: integration tests that record events wait for the async outbox worker to finish (e.g. await the event's `Processed` status with `AsNoTracking`) before disposing the test factory, and the entry-point shims (`tools/AuthDbInit/Program.cs`, exercised via the assembly entry point; `CmsWebhook.Api/Program.cs`, exercised through `WebApplicationFactory`) are covered rather than excluded.
 
 ### MCP servers for Freebuff
 Freebuff loads MCP servers from `.agents/mcp.json` (searched in the project root, its parent, then `~/.agents/`), keyed by `mcpServers`. This repo wires two servers:

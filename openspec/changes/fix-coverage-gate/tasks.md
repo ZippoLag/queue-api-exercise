@@ -18,7 +18,7 @@
 
 ## 4. Gate threshold and verification
 
-- [x] 4.1 Raise `.config/coverage-min.txt` to 95.1 (or the achieved value rounded down if measurement lands below) in the same commit as the tests — already at 95.1 (user-set); final measured value is 100.00% (716/716), so 95.1 stands as the ratchet
+- [x] 4.1 Raise `.config/coverage-min.txt` to 95.1 (or the achieved value rounded down if measurement lands below) in the same commit as the tests — already at 95.1 (user-set); final measured value is 100.00% (716/716). After the deterministic runs confirmed the metric is stable, the ratchet was raised to **100.0** (user request) — any uncovered line now fails CI
 - [x] 4.2 Run the full suite + gate locally across repeated runs to confirm the metric is deterministic and the gate is green — 3 consecutive fresh runs all report exactly 716/716 (100.00%); the flaky async-worker measurement is gone
 - [x] 4.3 Run `openspec validate --all` to confirm the change artifacts are valid — 11/11 passed
 

@@ -49,14 +49,14 @@ All new tests follow the existing conventions: xUnit + Moq + FluentAssertions, X
 
 ### 5. Threshold set to the honest measured value
 
-`/config/coverage-min.txt` moves to **95.1** once the corrected metric plus new tests land; if the measured value is slightly above/below 95.1 after implementation, the committed number is the achieved value rounded down (ratchet semantics: never commit a number the current tree cannot pass).
+`/config/coverage-min.txt` moves to **95.1** once the corrected metric plus new tests land; if the measured value is slightly above/below 95.1 after implementation, the committed number is the achieved value rounded down (ratchet semantics: never commit a number the current tree cannot pass). In the end the measured rate is deterministic at 100.00% (716/716), so the committed ratchet was raised to **100.0** — a line added without a test now fails CI, which is exactly what the ratchet is for.
 
 ## Risks / Trade-offs
 
 - [Path normalization is brittle if a future report emits an unseen prefix] → the script fails loudly with the offending path listed, and the normalization table lives in the script header for easy extension; CI proves it on every run.
 - [Top-level `Program.cs` shims keep 1–2 uncovered lines each] → resolved during implementation: the `AuthDbInit` shim is covered via an `EntryPoint` invocation test, and the Api entry-point glue is exercised through `WebApplicationFactory`; the final measured rate is 100.00% (716/716).
 - [`IsDevelopment()` Scalar branch may be uncoverable in tests] → the integration test host runs in Development by default, so it should be covered; if not, accept the single line as a documented exclusion rather than contorting the test host.
-- [Raising the threshold to 95.1% makes the gate sensitive to new code] → that is the point of the ratchet; the README's "how to raise the threshold" section already documents the deliberate-raise workflow, and new feature changes will add their own tests.
+- [Raising the threshold to 100.0% makes the gate sensitive to new code] → that is the point of the ratchet (every new line needs its test); the README's "how to raise the threshold" section already documents the deliberate-raise workflow, and new feature changes will add their own tests.
 
 ## Migration Plan
 

@@ -5,7 +5,7 @@ The coverage gate added in `add-ci-build-and-test` measures a metric that cannot
 ## What Changes
 
 - **Fix the coverage metric**: `scripts/check-coverage.sh` aggregates cobertura reports by **unique source line** (union across reports, paths normalized), instead of summing per-report counts. A line counts as covered if *any* test project covers it. This is the industry-standard interpretation (SonarQube/Coveralls style) and removes the shared-code double-counting.
-- **Raise the threshold to 95.1%** in `.config/coverage-min.txt` (the user's target) — on the corrected metric the baseline is 92.99% (663/713), so 95.1% is reachable with the meaningful tests below.
+- **Raise the threshold** in `.config/coverage-min.txt` — on the corrected metric the baseline is 92.99% (663/713), so the user's initial target of 95.1% is reachable with the meaningful tests below; the measured outcome is deterministic at 100.00% (716/716), so the committed ratchet is **100.0**.
 - **Add the missing meaningful tests** for the genuinely-untested logic:
   - `CmsEventProcessorWorker` — sweep error and per-event failure paths (11 lines)
   - `EfCmsEventProcessor` — failure-marking path (4 lines)
