@@ -14,17 +14,37 @@ I've been encouraged to rely on AI assistance for the production of this solutio
 Due to budget constraints, I'm using [FREEBUFF](https://github.com/CodebuffAI/freebuff) as coding assistant since it's good enough for my purposes. I'm keeping it out of Dockerfile intentionally, but as any other automated harness, it should better be run sandboxed. I'm also using [OpenSpec](https://github.com/Fission-AI/OpenSpec/) and [OpenLore](https://github.com/clay-good/OpenLore) as change trackers, since it's a tool I have been meaning to try and decided this project may be a good chance to test it. I recommend installing these tools within the devcontainer's terminal via [pnpm](https://pnpm.io/) by executing:
 
 ```bash
-wget -qO- https://get.pnpm.io/install.sh | ENV="$HOME/.bashrc" SHELL="$(which bash)" bash - # Installing pnpm since it's a safer alternative to npm
-source ~/.bashrc # Reloading the terminal
+# 1. pnpm (safer alternative to npm)
+wget -qO- https://get.pnpm.io/install.sh | ENV="$HOME/.bashrc" SHELL="$(which bash)" bash -
+source ~/.bashrc
 pnpm runtime set node lts -g
-pnpm install -g freebuff
-pnpm install -g @fission-ai/openspec@latest
-[ -d openspec/ ] && openspec update || openspec init # If the openspec folder doesn't exist (ie, you're starting a new project, you must initialize first)
-pnpm install -g openlore # Installs OpenLore to keep track of development drift and to incorporate manual code changes into the spec if need be
-[ -f .openlore/index-bundle.olbundle ] && openlore import .openlore/index-bundle.olbundle && openlore analyze || openlore install # Checks if openlore is already initialized, otherwise does so
-openlore doctor # Checks openlore has been correctly initialized
-openlore verify # Verifies the current specs' validity
-# openlore drift --install-hook # currnely wrongly detects skill files as drift, run `openlore drift` manually before commit! See https://github.com/clay-good/OpenLore/issues/350
+
+# 2. Global tools
+pnpm install -g freebuff              # coding assistant
+pnpm install -g @fission-ai/openspec@latest  # OpenSpec CLI (spec-driven development)
+pnpm install -g openlore              # OpenLore (static analysis + drift tracking; no API key needed)
+
+# 3. OpenSpec baseline (only when starting a brand-new project; this repo already has openspec/)
+[ -d openspec/ ] && openspec update || openspec init
+
+# 4. OpenLore: .openlore/config.json is committed, so just build the index
+openlore init      # only needed if .openlore/config.json is missing (e.g. fresh clone without the committed config)
+openlore analyze   # builds the call-graph index (no API key; C# is fully supported by openlore >= 2.1.9)
+
+# 5. Health checks
+openlore doctor    # every line should be ✓ except the optional "LLM connection" warning (only used by `openlore generate`)
+openspec validate --all   # specs must all pass
+# openlore verify   # optional: spec/code drift + generation report — REQUIRES an LLM API key (ANTHROPIC_API_KEY/OPENAI_API_KEY/...)
+
+# 6. ARM64 (Apple Silicon) devcontainers only — repair the C#/Bash grammars
+# tree-sitter-c-sharp@0.21.3 ships no linux-arm64 prebuilt binary, so C# files
+# would be indexed for search but never graphed. Build the native binding from
+# source (one-time; idempotent):
+bash scripts/repair-openlore-grammar.sh && openlore analyze --force
+
+# 7. Optional but recommended before each commit (no API key)
+openlore drift     # detect spec/code drift
+# NOTE: `openlore drift --install-hook` wrongly detects skill files as drift, run `openlore drift` manually before commit! See https://github.com/clay-good/OpenLore/issues/350
 ```
 
 ### MCP servers for Freebuff
@@ -33,6 +53,10 @@ Freebuff loads MCP servers from `.agents/mcp.json` (searched in the project root
 - `openlore` — `openlore mcp --preset full` over stdio (all 73 tools, including the OpenSpec tools `check_spec_drift`, `search_specs`, `get_spec`, `list_spec_domains`, and `audit_spec_coverage`).
 - `microsoft-learn` — the official Microsoft Learn MCP over HTTP (referenced in `AGENTS.md`).
 
-> Note: OpenLore 2.x has no C#/.NET function extractor yet (only TypeScript, Go, Rust, Python), so `orient` and the call-graph tools return no results on this .NET codebase; `search_code` (text) and the spec tools still work. `openlore verify`/`generate` additionally require an LLM API key.
+The MCP server reads the index built by `openlore analyze`, so steps 4–6 above must run before Freebuff's `orient`/call-graph tools return results on this codebase.
+
+> Note: OpenLore ≥ 2.1.9 ships a C#/.NET extractor (methods, constructors, local functions, call edges — verified on this repo: 211 functions across 53 `.cs` files). The only caveat is the native grammar binary: `tree-sitter-c-sharp@0.21.3` publishes prebuilds for darwin-x64, win32-x64, linux-x64 and darwin-arm64 but not linux-arm64, so Apple-Silicon devcontainers need step 6 above once.
+
+> Note: `openlore verify`/`generate` additionally require an LLM API key; everything else (analyze, orient, drift, doctor, MCP tools) is local and keyless.
 
 > Note: I've given the above sequence the flexibility to be ran in a new project, should you want to copy them into your own set-up.

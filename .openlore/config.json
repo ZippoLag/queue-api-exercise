@@ -1,0 +1,19 @@
+{
+  "version": "1.0.0",
+  "projectType": "unknown",
+  "openspecPath": "./openspec",
+  "analysis": {
+    "maxFiles": 100000,
+    "includePatterns": [],
+    "excludePatterns": []
+  },
+  "generation": {
+    "model": "claude-sonnet-4-6",
+    "domains": "auto"
+  },
+  "panicResponse": {
+    "mode": "off"
+  },
+  "createdAt": "2026-08-14T10:26:43.754Z",
+  "lastRun": null
+}
