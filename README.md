@@ -59,7 +59,10 @@ openspec validate --all                          # spec discipline gate
 
 ## Documentation
 
+- **Hosted site**: <https://ZippoLag.github.io/queue-api-exercise/> — a DocFX-generated static site (API reference from the XML doc comments + the conceptual Markdown below), rebuilt on every push to `main`
 - [Architecture](docs/architecture.md) — system overview, design decisions, API and event-processing semantics
 - [Domain glossary](docs/dsl_glossary.md) — domain specific language: terminology and nomenclature
 - [Development style](docs/development-style.md) — development approach, AI assistance, and tooling setup
 - [Configuration](docs/configuration.md) — credentials, environment variables, TLS
+
+The **canonical documentation sources remain these Markdown files and the OpenSpec specs** (`openspec/specs`) — the hosted site is a generated view of them, never a separate copy.

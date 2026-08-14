@@ -1,0 +1,53 @@
+{
+  "metadata": [
+    {
+      "src": [
+        {
+          "files": [
+            "src/**/*.csproj"
+          ],
+          "exclude": []
+        }
+      ],
+      "dest": "api"
+    }
+  ],
+  "build": {
+    "content": [
+      {
+        "files": [
+          "index.md",
+          "docs/**/*.md",
+          "README.md"
+        ],
+        "exclude": [
+          "docs/archived/**"
+        ]
+      },
+      {
+        "files": [
+          "api/**/*.yml"
+        ]
+      },
+      {
+        "files": [
+          "toc.yml",
+          "**/toc.yml"
+        ]
+      }
+    ],
+    "resource": [
+      {
+        "files": [
+          "docs/**/*.png",
+          "docs/**/*.drawio"
+        ]
+      }
+    ],
+    "overwrite": [],
+    "dest": "_site",
+    "template": [
+      "default"
+    ]
+  }
+}

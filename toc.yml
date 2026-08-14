@@ -1,0 +1,12 @@
+- name: Home
+  href: index.md
+- name: Architecture
+  href: docs/architecture.md
+- name: Configuration
+  href: docs/configuration.md
+- name: Domain glossary
+  href: docs/dsl_glossary.md
+- name: Development style
+  href: docs/development-style.md
+- name: API Reference
+  href: api/
