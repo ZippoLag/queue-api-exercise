@@ -2,6 +2,7 @@ using System.Net;
 using System.Text;
 using System.Text.Json;
 using FluentAssertions;
+using Microsoft.AspNetCore.Hosting;
 
 namespace CmsWebhook.Api.Tests;
 
@@ -52,6 +53,48 @@ public class CmsWebhookApiOpenApiTests
 
         paths.TryGetProperty("/health", out var health).Should().BeTrue();
         health.TryGetProperty("get", out _).Should().BeTrue();
+    }
+
+    /// <summary>
+    /// Verifies the Scalar API reference UI is served anonymously in non-Development environments.
+    /// </summary>
+    /// <remarks>
+    /// Source business rule: spec "OpenAPI document", scenario "API reference UI served in all
+    /// environments". The test host defaults to Development, so the host is explicitly switched to
+    /// Production — without that, the test would pass even if the UI stayed Development-only (vacuous).
+    /// The UI renders the same public contract JSON as <c>/openapi/v1.json</c>, hence the anonymous access.
+    /// </remarks>
+    [Fact]
+    public async Task GetScalarUi_InProductionEnvironment_ReturnsOkAnonymously()
+    {
+        using var factory = new CmsWebhookApiFactory()
+            .WithWebHostBuilder(builder => builder.UseEnvironment("Production"));
+        using var client = factory.CreateClient();
+
+        var response = await client.GetAsync("/scalar/v1");
+
+        response.StatusCode.Should().Be(HttpStatusCode.OK);
+        response.Content.Headers.ContentType!.MediaType.Should().Be("text/html");
+        (await response.Content.ReadAsStringAsync()).Should().NotBeEmpty();
+    }
+
+    /// <summary>
+    /// Verifies the Scalar API reference UI remains reachable in the default Development environment.
+    /// </summary>
+    /// <remarks>
+    /// Source business rule: the UI is always-on; the previous Development-only behavior is gone, so the
+    /// default test-host environment must serve it too (regression against the environment guard).
+    /// </remarks>
+    [Fact]
+    public async Task GetScalarUi_InDevelopmentEnvironment_ReturnsOk()
+    {
+        using var factory = new CmsWebhookApiFactory();
+        using var client = factory.CreateClient();
+
+        var response = await client.GetAsync("/scalar/v1");
+
+        response.StatusCode.Should().Be(HttpStatusCode.OK);
+        response.Content.Headers.ContentType!.MediaType.Should().Be("text/html");
     }
 
     /// <summary>

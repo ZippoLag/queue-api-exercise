@@ -83,10 +83,9 @@ app.MapHealthEndpoints();
 app.MapCmsEventEndpoints();
 app.MapOpenApi().AllowAnonymous();
 
-if (app.Environment.IsDevelopment())
-{
-    app.MapScalarApiReference().AllowAnonymous();
-}
+// The browsable UI renders the same public contract JSON already served anonymously at /openapi/v1.json,
+// so it is served in every environment (design: always-on Scalar, change openapi-consumer-ui).
+app.MapScalarApiReference().AllowAnonymous();
 
 app.Run();
 
