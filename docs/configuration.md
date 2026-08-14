@@ -30,6 +30,7 @@ The double-underscore convention maps environment variables to configuration key
 | `ConnectionStrings__AuthDb` | `ConnectionStrings:AuthDb` |
 | `ConnectionStrings__CmsDb` | `ConnectionStrings:CmsDb` |
 | `Auth__CmsUsername` | `Auth:CmsUsername` |
+| `Auth__AdministratorUsername` | `Auth:AdministratorUsername` (Users API) |
 | `Data__DbBasePath` | `Data:DbBasePath` |
 
 ## Secrets guidance
@@ -48,6 +49,9 @@ In local development the stores land at:
 - `src/CmsWebhook/CmsWebhook.Api/db/queue-auth.db` — the shared credential store
 - `src/CmsWebhook/CmsWebhook.Api/db/queue-cms.db` — the CMS event database
 
+Both APIs address these same two files: the CmsWebhook project's content root is its own directory, and the
+Users API sets its `Data:DbBasePath` to `../CmsWebhook/CmsWebhook.Api` (relative to its own content root).
+
 Both are gitignored (`**/db/*.db*`) and are throwaway data — delete them and re-run the init script to start over.
 
 Deployments point the stores elsewhere with environment variables, e.g.:
@@ -60,12 +64,13 @@ export ConnectionStrings__CmsDb="Data Source=/var/lib/queue-api/cms.db;Default T
 
 ## Credential store
 
-Credentials live in the SQLite credential store (`db/queue-auth.db` by default — see above), provisioned idempotently by `scripts/init-db.sh`. The script's default `DB_PATH` already matches the API's own resolution (the API project's `db/` directory); override it with `DB_PATH` or point `ConnectionStrings:AuthDb` elsewhere and pass the absolute path.
+Credentials live in the SQLite credential store (`db/queue-auth.db` by default — see above), provisioned idempotently by `scripts/init-db.sh`. The script's default `DB_PATH` already matches the APIs' own resolution (the CmsWebhook project's `db/` directory); override it with `DB_PATH` or point `ConnectionStrings:AuthDb` elsewhere and pass the absolute path.
 
+- The script seeds the three reserved users `cms-webhook`, `administrator` and `regular-user`, taking the three passwords as positional arguments: `scripts/init-db.sh [cms-password] [admin-password] [regular-password]`. Re-running over an already-seeded store leaves existing users unchanged (idempotent).
 - The store location is configurable via `ConnectionStrings:AuthDb` (e.g. the `ConnectionStrings__AuthDb` environment variable).
-- The reserved cms username via `Auth:CmsUsername` (e.g. the `Auth__CmsUsername` environment variable).
+- The reserved cms username via `Auth:CmsUsername` (e.g. the `Auth__CmsUsername` environment variable); the Users API's administrator username via `Auth:AdministratorUsername` (e.g. `Auth__AdministratorUsername`).
 - To change a seeded user's password, delete `db/queue-auth.db` and re-run the script (re-running with a different password leaves the existing user unchanged).
-- The local-development default password used by `scripts/init-db.sh` is `0f6c3c5a-9b2e-4f7d-8a1c-2e5b9d7f3a61` — DO NOT use it outside local development.
+- The local-development default passwords used by `scripts/init-db.sh` are `0f6c3c5a-9b2e-4f7d-8a1c-2e5b9d7f3a61` (cms), `a1b2c3d4-e5f6-4a7b-8c9d-0e1f2a3b4c5d` (administrator) and `6d5c4b3a-2f1e-4d0c-9b8a-7f6e5d4c3b2a` (regular) — DO NOT use them outside local development.
 
 ## CMS event database
 

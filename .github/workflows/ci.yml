@@ -33,3 +33,33 @@ jobs:
         run: |
           npm install -g @fission-ai/openspec@1.8.0
           openspec validate --all
+
+  end-to-end:
+    name: End-to-end smoke tests
+    runs-on: ubuntu-latest
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+
+      - name: Setup .NET SDK
+        uses: actions/setup-dotnet@v4
+        with:
+          global-json-file: global.json
+
+      - name: Restore
+        run: dotnet restore tests/E2E/QueueApi.E2E.Tests/QueueApi.E2E.Tests.csproj
+
+      - name: Build (warnings are errors)
+        run: dotnet build tests/E2E/QueueApi.E2E.Tests/QueueApi.E2E.Tests.csproj --no-restore
+
+      # Runs both APIs against one shared store through the in-process test host; deliberately excluded
+      # from the main job's blanket `dotnet test QueueApi.slnx` run (the project is not part of the
+      # solution).
+      - name: Run end-to-end smoke tests
+        run: dotnet test tests/E2E/QueueApi.E2E.Tests/QueueApi.E2E.Tests.csproj --no-build --no-restore
+
+      # Same scenario against the real deployment path: publishes both APIs, seeds a real credential
+      # store via scripts/init-db.sh, starts real processes over real SQLite files, and drives the full
+      # vertical over real HTTP.
+      - name: Smoke test against real processes and stores
+        run: bash scripts/smoke-e2e.sh

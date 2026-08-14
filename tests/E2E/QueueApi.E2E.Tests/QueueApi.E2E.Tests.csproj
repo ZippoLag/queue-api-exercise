@@ -1,0 +1,43 @@
+<Project Sdk="Microsoft.NET.Sdk">
+
+  <PropertyGroup>
+    <GenerateDocumentationFile>true</GenerateDocumentationFile>
+  </PropertyGroup>
+
+  <PropertyGroup>
+    <TargetFramework>net9.0</TargetFramework>
+    <ImplicitUsings>enable</ImplicitUsings>
+    <Nullable>enable</Nullable>
+    <IsPackable>false</IsPackable>
+  </PropertyGroup>
+
+  <ItemGroup>
+    <PackageReference Include="coverlet.collector" Version="6.0.2" />
+    <PackageReference Include="FluentAssertions" Version="8.10.0" />
+    <PackageReference Include="Microsoft.AspNetCore.Mvc.Testing" Version="9.0.0" />
+    <PackageReference Include="Microsoft.NET.Test.Sdk" Version="17.12.0" />
+    <PackageReference Include="xunit" Version="2.9.2" />
+    <PackageReference Include="xunit.runner.visualstudio" Version="2.8.2" />
+  </ItemGroup>
+
+  <ItemGroup>
+    <FrameworkReference Include="Microsoft.AspNetCore.App" />
+  </ItemGroup>
+
+  <ItemGroup>
+    <Using Include="Xunit" />
+  </ItemGroup>
+
+  <ItemGroup>
+    <!-- Both web projects declare their `Program` entry-point type in the global namespace, so the
+         API references are aliased to disambiguate WebApplicationFactory<Program> per API. The
+         infrastructure and shared-auth projects are referenced directly (without alias) so their types
+         stay globally visible in this project. -->
+    <ProjectReference Include="..\..\..\src\CmsWebhook\CmsWebhook.Api\CmsWebhook.Api.csproj" Aliases="cmswebhook" />
+    <ProjectReference Include="..\..\..\src\Users\Users.Api\Users.Api.csproj" Aliases="users" />
+    <ProjectReference Include="..\..\..\src\CmsWebhook\CmsWebhook.Infrastructure\CmsWebhook.Infrastructure.csproj" />
+    <ProjectReference Include="..\..\..\src\Users\Users.Infrastructure\Users.Infrastructure.csproj" />
+    <ProjectReference Include="..\..\..\src\Shared\QueueApi.Auth\QueueApi.Auth.csproj" />
+  </ItemGroup>
+
+</Project>

@@ -1,0 +1,111 @@
+using System.Security.Claims;
+using Users.Application;
+
+namespace Users.Api.Endpoints;
+
+/// <summary>
+/// Registers the Users API's entity endpoints.
+/// </summary>
+/// <remarks>
+/// Mirrors the CmsWebhook organization: each feature owns its endpoint mapping and OpenAPI metadata. The
+/// fallback authorization policy (authenticated, non-<c>cms-webhook</c>) protects <c>GET /entities</c>;
+/// the administrator-only policy protects the enable/disable commands (design decision 1 of the
+/// users-api-vertical change). The administrator's role for the listing is resolved from the principal
+/// against the configured administrator username, keeping concrete usernames out of the Application layer.
+/// </remarks>
+public static class EntityEndpoints
+{
+    /// <summary>
+    /// The authorization policy allowing only the administrator to enable/disable entity visibility.
+    /// </summary>
+    public const string AdministratorPolicy = "AdministratorOnly";
+
+    /// <summary>
+    /// Maps the entity listing and enable/disable endpoints.
+    /// </summary>
+    /// <param name="endpoints">The endpoint route builder to register the endpoints on.</param>
+    /// <returns>The endpoint route builder for chaining.</returns>
+    public static IEndpointRouteBuilder MapEntityEndpoints(this IEndpointRouteBuilder endpoints)
+    {
+        endpoints.MapGet("/entities", ListAsync)
+            .WithSummary("List published entities")
+            .WithDescription(
+                "Returns the currently published entities: the administrator sees all of them, a regular "
+                + "user only those not disabled by an administrator. Each item carries the entity id, its "
+                + "administrator-visibility flag, latest version, last update time and payload.")
+            .WithTags("entities");
+
+        endpoints.MapPost("/entities/{id}/disable", DisableAsync)
+            .RequireAuthorization(AdministratorPolicy)
+            .WithSummary("Disable an entity")
+            .WithDescription(
+                "Hides the entity from regular users' listings. Idempotent; no request body; "
+                + "204 on success, 404 for an unknown entity id.")
+            .WithTags("entities");
+
+        endpoints.MapPost("/entities/{id}/enable", EnableAsync)
+            .RequireAuthorization(AdministratorPolicy)
+            .WithSummary("Enable an entity")
+            .WithDescription(
+                "Restores the entity to regular users' listings. Idempotent; no request body; "
+                + "204 on success, 404 for an unknown entity id.")
+            .WithTags("entities");
+
+        return endpoints;
+    }
+
+    /// <summary>
+    /// Handles <c>GET /entities</c>: lists the published entities visible to the caller.
+    /// </summary>
+    /// <param name="httpContext">The current HTTP context, whose principal carries the caller's username.</param>
+    /// <param name="roles">The reserved usernames this API recognizes.</param>
+    /// <param name="handler">The query handler applying the visibility rule.</param>
+    /// <param name="cancellationToken">The request cancellation token.</param>
+    /// <returns><c>200 OK</c> with the visible entities.</returns>
+    private static async Task<IResult> ListAsync(
+        HttpContext httpContext,
+        UsersApiRoles roles,
+        IListEntitiesQueryHandler handler,
+        CancellationToken cancellationToken)
+    {
+        var isAdministrator = string.Equals(
+            httpContext.User.FindFirstValue(ClaimTypes.Name),
+            roles.AdministratorUsername,
+            StringComparison.Ordinal);
+
+        var items = await handler.HandleAsync(new ListEntitiesQuery(isAdministrator), cancellationToken);
+        return Results.Ok(items);
+    }
+
+    /// <summary>
+    /// Handles <c>POST /entities/{id}/disable</c>: hides the entity from regular users.
+    /// </summary>
+    /// <param name="id">The entity id from the route.</param>
+    /// <param name="handler">The command handler applying the visibility change.</param>
+    /// <param name="cancellationToken">The request cancellation token.</param>
+    /// <returns><c>204 No Content</c> on success, <c>404 Not Found</c> for an unknown id.</returns>
+    private static async Task<IResult> DisableAsync(
+        string id,
+        ISetEntityVisibilityCommandHandler handler,
+        CancellationToken cancellationToken)
+    {
+        var updated = await handler.HandleAsync(new SetEntityVisibilityCommand(id, IsVisibleByAdmin: false), cancellationToken);
+        return updated ? Results.NoContent() : Results.NotFound();
+    }
+
+    /// <summary>
+    /// Handles <c>POST /entities/{id}/enable</c>: restores the entity to regular users.
+    /// </summary>
+    /// <param name="id">The entity id from the route.</param>
+    /// <param name="handler">The command handler applying the visibility change.</param>
+    /// <param name="cancellationToken">The request cancellation token.</param>
+    /// <returns><c>204 No Content</c> on success, <c>404 Not Found</c> for an unknown id.</returns>
+    private static async Task<IResult> EnableAsync(
+        string id,
+        ISetEntityVisibilityCommandHandler handler,
+        CancellationToken cancellationToken)
+    {
+        var updated = await handler.HandleAsync(new SetEntityVisibilityCommand(id, IsVisibleByAdmin: true), cancellationToken);
+        return updated ? Results.NoContent() : Results.NotFound();
+    }
+}

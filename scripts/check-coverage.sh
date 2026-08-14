@@ -32,6 +32,9 @@
 #   CmsWebhook.Application/...             -> src/CmsWebhook/CmsWebhook.Application/...
 #   CmsWebhook.Domain/...                  -> src/CmsWebhook/CmsWebhook.Domain/...
 #   CmsWebhook.Infrastructure/...          -> src/CmsWebhook/CmsWebhook.Infrastructure/...
+#   Users/Users.Api/...                    -> src/Users/Users.Api/...
+#   Users/Users.Application/...            -> src/Users/Users.Application/...
+#   Users/Users.Infrastructure/...         -> src/Users/Users.Infrastructure/...
 #   Shared/QueueApi.Auth/...               -> src/Shared/QueueApi.Auth/...
 #   src/Shared/QueueApi.Auth/...           (already canonical)
 #   tools/AuthDbInit/...                   (already canonical)
@@ -48,6 +51,14 @@
 #       -> src/Shared/QueueApi.Auth/
 #   CmsEntity.cs / CmsEvent.cs / CmsRequest.cs / CmsRequestValidator.cs
 #       -> src/CmsWebhook/CmsWebhook.Domain/
+#   EntityListItem.cs / IEntityCommandRepository.cs / IEntityQueryRepository.cs /
+#   ListEntitiesQueryHandler.cs / SetEntityVisibilityCommandHandler.cs
+#       -> src/Users/Users.Application/
+#   EfEntityCommandRepository.cs / EfEntityQueryRepository.cs / UsersDbContext.cs /
+#   UsersServiceCollectionExtensions.cs
+#       -> src/Users/Users.Infrastructure/
+#   EntityEndpoints.cs / HealthEndpoints.cs / Program.cs
+#       -> src/Users/Users.Api/
 #
 # If a path still does not start with src/ or tools/ after normalization the
 # script fails loudly, listing the offending path, so an unseen prefix is
@@ -94,6 +105,7 @@ extract_lines() {
       if (f ~ /^CmsWebhook\/CmsWebhook\.(Api|Application|Domain|Infrastructure)\//) return "src/" f
       if (f ~ /^CmsWebhook\.(Application|Domain|Infrastructure)\//) return "src/CmsWebhook/" f
       if (f ~ /^Shared\/QueueApi\.Auth\//) return "src/" f
+      if (f ~ /^Users\/Users\.(Api|Application|Infrastructure)\//) return "src/" f
       if (f ~ /^(src\/|tools\/)/) return f
       base = f; sub(/.*\//, "", base)
       if (base == "AuthDbContext.cs"            ||
@@ -105,6 +117,12 @@ extract_lines() {
           base == "UserCredential.cs") return "src/Shared/QueueApi.Auth/" f
       if (base == "CmsEntity.cs" || base == "CmsEvent.cs" ||
           base == "CmsRequest.cs" || base == "CmsRequestValidator.cs") return "src/CmsWebhook/CmsWebhook.Domain/" f
+      if (base == "EntityListItem.cs" || base == "IEntityCommandRepository.cs" ||
+          base == "IEntityQueryRepository.cs" || base == "ListEntitiesQueryHandler.cs" ||
+          base == "SetEntityVisibilityCommandHandler.cs") return "src/Users/Users.Application/" f
+      if (base == "EfEntityCommandRepository.cs" || base == "EfEntityQueryRepository.cs" ||
+          base == "UsersDbContext.cs" || base == "UsersServiceCollectionExtensions.cs") return "src/Users/Users.Infrastructure/" f
+      if (base == "EntityEndpoints.cs" || base == "HealthEndpoints.cs" || base == "Program.cs") return "src/Users/Users.Api/" f
       return "UNKNOWN:" f
     }
   ' "$1"

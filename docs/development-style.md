@@ -57,13 +57,27 @@ Every push and pull request is verified by `.github/workflows/ci.yml` (see the R
 
 ### Raising the coverage threshold
 
-The committed number in `.config/coverage-min.txt` is a **ratchet**: it currently sits at **100.0%** — the union metric measures deterministically at 100.00% (716/716) across consecutive runs, so any newly-added uncovered line fails CI. To raise (or, in the future, adjust) it deliberately:
+The committed number in `.config/coverage-min.txt` is a **ratchet**: it currently sits at **100.0%** — the union metric measures deterministically at 100.00% (956/956) across consecutive clean runs, so any newly-added uncovered line fails CI. To raise (or, in the future, adjust) it deliberately:
 
 1. Improve coverage (new tests) and run `bash scripts/check-coverage.sh` to confirm the new unique-line rate.
 2. Edit `.config/coverage-min.txt` to a value at or below the new measured rate (leave a small margin for machine-to-machine variance).
 3. Commit the threshold change together with the tests that justify it.
 
-The union metric is **deterministic**: repeated runs report the same unique-line rate (100.00%, 716/716 across consecutive runs). Two practices keep it that way: integration tests that record events wait for the async outbox worker to finish (e.g. await the event's `Processed` status with `AsNoTracking`) before disposing the test factory, and the entry-point shims (`tools/AuthDbInit/Program.cs`, exercised via the assembly entry point; `CmsWebhook.Api/Program.cs`, exercised through `WebApplicationFactory`) are covered rather than excluded.
+The union metric is **deterministic**: repeated clean runs report the same unique-line rate (100.00%, 956/956 across consecutive runs). Two practices keep it that way: integration tests that record events wait for the async outbox worker to finish (e.g. await the event's `Processed` status with `AsNoTracking`) before disposing the test factory, and the entry-point shims (`tools/AuthDbInit/Program.cs`, exercised via the assembly entry point; `CmsWebhook.Api/Program.cs` and `Users.Api/Program.cs`, exercised through `WebApplicationFactory`) are covered rather than excluded.
+
+### End-to-end (E2E) testing
+
+The `end-to-end` CI job validates that both APIs interoperate over **one shared store**, in two layers:
+
+1. **Test host** (`tests/E2E/QueueApi.E2E.Tests`) — xunit scenarios via `WebApplicationFactory`, running the CMS Webhook and Users APIs in-process against one seeded credential store and one CMS database. Scenarios cover the full vertical: CMS event ingestion → outbox processing → the regular-user listing → the administrator's disable/enable → `cms-webhook` rejected on the Users API → a CMS update event not resetting the administrator's disable.
+2. **Real processes** (`scripts/smoke-e2e.sh`) — the same vertical against the deployment path: `dotnet publish -c Release` both APIs, seed a real credential store through `scripts/init-db.sh`, start both executables as real processes over real SQLite files (Production environment, stores supplied via environment variables), and drive the flow over real HTTP with curl status assertions. A `trap` kills the processes and removes the temp stores on every exit path.
+
+Conventions:
+
+- The E2E project deliberately lives **outside** `QueueApi.slnx` so the blanket `dotnet test QueueApi.slnx` run stays a fast per-module suite; run it explicitly with `dotnet test tests/E2E/QueueApi.E2E.Tests/QueueApi.E2E.Tests.csproj` (or `bash scripts/smoke-e2e.sh` for the real-process layer). The slnx carries a comment pointing here.
+- Both APIs declare their `Program` entry-point type in the global namespace, so the E2E project references the two API projects with `Aliases` (`extern alias cmswebhook` / `users`) while referencing the infrastructure and shared-auth projects directly for global visibility.
+- Async outbox processing is awaited by polling (the regular-user listing for entity presence, the administrator listing for a written version) with a timeout, so scenarios never assert before the worker has applied the event.
+- Each scenario gets a fresh `E2EEnvironment` (temp stores + both hosts), so tests stay independent and parallel-safe; the smoke script's stores live in a `mktemp -d` directory removed by its cleanup trap.
 
 ### MCP servers for Freebuff
 Freebuff loads MCP servers from `.agents/mcp.json` (searched in the project root, its parent, then `~/.agents/`), keyed by `mcpServers`. This repo wires two servers:

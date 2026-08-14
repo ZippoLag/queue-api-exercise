@@ -14,6 +14,11 @@
   <Folder Name="/src/Shared/">
     <Project Path="src/Shared/QueueApi.Auth/QueueApi.Auth.csproj" />
   </Folder>
+  <Folder Name="/src/Users/">
+    <Project Path="src/Users/Users.Api/Users.Api.csproj" />
+    <Project Path="src/Users/Users.Application/Users.Application.csproj" />
+    <Project Path="src/Users/Users.Infrastructure/Users.Infrastructure.csproj" />
+  </Folder>
   <Folder Name="/tests/" />
   <Folder Name="/tests/CmsWebhook/">
     <Project Path="tests/CmsWebhook/CmsWebhook.Api.Tests/CmsWebhook.Api.Tests.csproj" />
@@ -24,8 +29,17 @@
   <Folder Name="/tests/Shared/">
     <Project Path="tests/Shared/QueueApi.Auth.Tests/QueueApi.Auth.Tests.csproj" />
   </Folder>
+  <Folder Name="/tests/Users/">
+    <Project Path="tests/Users/Users.Api.Tests/Users.Api.Tests.csproj" />
+    <Project Path="tests/Users/Users.Application.Tests/Users.Application.Tests.csproj" />
+    <Project Path="tests/Users/Users.Infrastructure.Tests/Users.Infrastructure.Tests.csproj" />
+  </Folder>
   <Folder Name="/tools/">
     <Project Path="tools/AuthDbInit/AuthDbInit.csproj" />
     <Project Path="tools/AuthDbInit.Tests/AuthDbInit.Tests.csproj" />
   </Folder>
+  <!-- The end-to-end smoke tests (tests/E2E/QueueApi.E2E.Tests) deliberately live OUTSIDE this
+       solution: they run as their own CI job so the blanket `dotnet test QueueApi.slnx` run stays a
+       fast per-module unit/integration suite. Run them explicitly with
+       `dotnet test tests/E2E/QueueApi.E2E.Tests/QueueApi.E2E.Tests.csproj`. -->
 </Solution>

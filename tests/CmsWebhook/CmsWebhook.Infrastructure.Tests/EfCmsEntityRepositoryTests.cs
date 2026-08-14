@@ -45,6 +45,36 @@ public class EfCmsEntityRepositoryTests
     }
 
     /// <summary>
+    /// Verifies an upsert over an existing row preserves the administrator's visibility override even
+    /// when the incoming entity carries the default (visible) flag.
+    /// </summary>
+    /// <remarks>
+    /// Source business rule: users-api spec "Administrator enables and disables entity visibility" — a
+    /// disabled entity stays hidden from regular users; the CMS event pipeline must not silently reset
+    /// the override. Design decision 3 makes the storage boundary carry the stored flag forward.
+    /// </remarks>
+    [Fact]
+    public async Task UpsertAsync_WhenEntityAlreadyExists_PreservesIsVisibleByAdmin()
+    {
+        using var database = new CmsTestDatabase();
+        await using var context = database.CreateContext();
+        var repository = new EfCmsEntityRepository(context);
+
+        var disabled = Entity("entity-1", 1, """{"v":1}""");
+        disabled.IsVisibleByAdmin = false;
+        await repository.UpsertAsync(disabled, CancellationToken.None);
+
+        // A newer CMS event produces a fresh entity instance with the default (visible) flag;
+        // the administrator's disable must survive the update.
+        await repository.UpsertAsync(Entity("entity-1", 2, """{"v":2}"""), CancellationToken.None);
+
+        var stored = await context.Entities.SingleAsync();
+        stored.IsVisibleByAdmin.Should().BeFalse();
+        stored.LatestVersion.Should().Be(2);
+        stored.Payload.Should().Be("""{"v":2}""");
+    }
+
+    /// <summary>
     /// Verifies the delete hard-removes an existing entity and is a no-op for a missing one.
     /// </summary>
     /// <remarks>Source business rule: spec scenario "Delete removes the entity"; deletes of unknown ids do nothing.</remarks>

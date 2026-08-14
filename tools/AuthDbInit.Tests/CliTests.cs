@@ -9,15 +9,26 @@ namespace AuthDbInit.Tests;
 /// </summary>
 public class CliTests
 {
-    private const string CmsUsername = "cms-webhook";
+    private const string CmsUsername = Cli.CmsUsername;
+    private const string AdministratorUsername = Cli.AdministratorUsername;
+    private const string RegularUsername = Cli.RegularUserUsername;
     private const string CmsPassword = "aaaaaaaa-aaaa-aaaa-aaaa-aaaaaaaaaaaa";
+    private const string AdministratorPassword = "bbbbbbbb-bbbb-bbbb-bbbb-bbbbbbbbbbbb";
+    private const string RegularPassword = "cccccccc-cccc-cccc-cccc-cccccccccccc";
+
+    /// <summary>
+    /// The full argument vector the script passes: db path plus the three reserved passwords.
+    /// </summary>
+    private static string[] FullArguments(string dbPath) =>
+        [dbPath, CmsPassword, AdministratorPassword, RegularPassword];
 
     /// <summary>
     /// Verifies a missing argument prints the usage error and exits with code 1.
     /// </summary>
     /// <remarks>
-    /// Source business rule: the initialization script requires <c>&lt;db-path&gt; &lt;username&gt; &lt;password&gt;</c>;
-    /// running it without all three must fail visibly with usage guidance.
+    /// Source business rule: the initialization script requires
+    /// <c>&lt;db-path&gt; &lt;cms-password&gt; &lt;admin-password&gt; &lt;regular-password&gt;</c>;
+    /// running it without all four must fail visibly with usage guidance.
     /// </remarks>
     [Theory]
     [MemberData(nameof(MissingArgumentCases))]
@@ -29,19 +40,20 @@ public class CliTests
         var exitCode = await Cli.RunAsync(args, stdout, stderr);
 
         exitCode.Should().Be(1);
-        stderr.ToString().Should().Contain("Usage: dotnet run --project tools/AuthDbInit");
+        stderr.ToString().Should().Contain(
+            "Usage: dotnet run --project tools/AuthDbInit -- <db-path> <cms-password> <admin-password> <regular-password>");
         stdout.ToString().Should().BeEmpty();
     }
 
     /// <summary>
-    /// Verifies a bare db path is wrapped into a SQLite connection string and the created outcome is reported.
+    /// Verifies a bare db path is wrapped into a SQLite connection string and all three users are created.
     /// </summary>
     /// <remarks>
     /// Source business rule: the tool accepts a plain path and seeds the store (spec scenario
-    /// "Initializing a fresh store"); the informational message must describe the created user.
+    /// "Initializing a fresh store"); the informational messages must describe each created user.
     /// </remarks>
     [Fact]
-    public async Task RunAsync_WithBareDbPath_CreatesUserAndReportsCreated()
+    public async Task RunAsync_WithBareDbPath_CreatesAllUsersAndReportsCreated()
     {
         var dbPath = Path.Combine(Path.GetTempPath(), $"cli-tests-{Guid.NewGuid():N}.db");
         try
@@ -49,11 +61,13 @@ public class CliTests
             using var stdout = new StringWriter();
             using var stderr = new StringWriter();
 
-            var exitCode = await Cli.RunAsync(new[] { dbPath, CmsUsername, CmsPassword }, stdout, stderr);
+            var exitCode = await Cli.RunAsync(FullArguments(dbPath), stdout, stderr);
 
             exitCode.Should().Be(0);
             stderr.ToString().Should().BeEmpty();
             stdout.ToString().Should().Contain($"[Information] Created user '{CmsUsername}' in '{dbPath}'.");
+            stdout.ToString().Should().Contain($"[Information] Created user '{AdministratorUsername}' in '{dbPath}'.");
+            stdout.ToString().Should().Contain($"[Information] Created user '{RegularUsername}' in '{dbPath}'.");
         }
         finally
         {
@@ -69,7 +83,7 @@ public class CliTests
     /// a connection string containing '=' must not be double-wrapped into <c>Data Source=Data Source=...</c>.
     /// </remarks>
     [Fact]
-    public async Task RunAsync_WithFullConnectionString_PassesItThroughAndCreatesUser()
+    public async Task RunAsync_WithFullConnectionString_PassesItThroughAndCreatesUsers()
     {
         var dbPath = Path.Combine(Path.GetTempPath(), $"cli-tests-{Guid.NewGuid():N}.db");
         var connectionString = $"Data Source={dbPath}";
@@ -78,10 +92,13 @@ public class CliTests
             using var stdout = new StringWriter();
             using var stderr = new StringWriter();
 
-            var exitCode = await Cli.RunAsync(new[] { connectionString, CmsUsername, CmsPassword }, stdout, stderr);
+            var exitCode = await Cli.RunAsync(FullArguments(connectionString), stdout, stderr);
 
             exitCode.Should().Be(0);
             stdout.ToString().Should().Contain($"[Information] Created user '{CmsUsername}' in '{connectionString}'.");
+            stdout.ToString().Should().Contain(
+                $"[Information] Created user '{AdministratorUsername}' in '{connectionString}'.");
+            stdout.ToString().Should().Contain($"[Information] Created user '{RegularUsername}' in '{connectionString}'.");
         }
         finally
         {
@@ -90,31 +107,35 @@ public class CliTests
     }
 
     /// <summary>
-    /// Verifies re-running on an already-seeded store reports the existing user and exits successfully.
+    /// Verifies re-running on an already-seeded store reports the existing users and exits successfully.
     /// </summary>
     /// <remarks>
     /// Source business rule: the script is idempotent (spec scenario "Re-running the initialization
-    /// script"); the second run must not fail and must warn that the user was left unchanged.
+    /// script"); the second run must not fail and must warn that each user was left unchanged.
     /// </remarks>
     [Fact]
-    public async Task RunAsync_WhenUserAlreadyExists_ReportsWarningAndSucceeds()
+    public async Task RunAsync_WhenUsersAlreadyExist_ReportsWarningsAndSucceeds()
     {
         var dbPath = Path.Combine(Path.GetTempPath(), $"cli-tests-{Guid.NewGuid():N}.db");
         try
         {
             using var firstStdout = new StringWriter();
             using var firstStderr = new StringWriter();
-            var firstRun = await Cli.RunAsync(new[] { dbPath, CmsUsername, CmsPassword }, firstStdout, firstStderr);
+            var firstRun = await Cli.RunAsync(FullArguments(dbPath), firstStdout, firstStderr);
             firstRun.Should().Be(0);
 
             using var secondStdout = new StringWriter();
             using var secondStderr = new StringWriter();
-            var secondRun = await Cli.RunAsync(new[] { dbPath, CmsUsername, CmsPassword }, secondStdout, secondStderr);
+            var secondRun = await Cli.RunAsync(FullArguments(dbPath), secondStdout, secondStderr);
 
             secondRun.Should().Be(0);
             secondStderr.ToString().Should().BeEmpty();
             secondStdout.ToString().Should().Contain(
                 $"[Warning] User '{CmsUsername}' already exists in '{dbPath}'; leaving it unchanged.");
+            secondStdout.ToString().Should().Contain(
+                $"[Warning] User '{AdministratorUsername}' already exists in '{dbPath}'; leaving it unchanged.");
+            secondStdout.ToString().Should().Contain(
+                $"[Warning] User '{RegularUsername}' already exists in '{dbPath}'; leaving it unchanged.");
         }
         finally
         {
@@ -123,14 +144,16 @@ public class CliTests
     }
 
     /// <summary>
-    /// The argument vectors that omit at least one of <c>&lt;db-path&gt; &lt;username&gt; &lt;password&gt;</c>.
+    /// The argument vectors that omit at least one of
+    /// <c>&lt;db-path&gt; &lt;cms-password&gt; &lt;admin-password&gt; &lt;regular-password&gt;</c>.
     /// </summary>
     public static IEnumerable<object[]> MissingArgumentCases =>
     [
         [Array.Empty<string>()],
         [new[] { "store.db" }],
-        [new[] { "store.db", CmsUsername }],
-        [new[] { "", CmsUsername, CmsPassword }],
+        [new[] { "store.db", CmsPassword }],
+        [new[] { "store.db", CmsPassword, AdministratorPassword }],
+        [new[] { "", CmsPassword, AdministratorPassword, RegularPassword }],
     ];
 
     /// <summary>
@@ -149,7 +172,7 @@ public class CliTests
         {
             var entryPoint = typeof(Cli).Assembly.EntryPoint
                 ?? throw new InvalidOperationException("AuthDbInit entry point not found.");
-            var invocation = entryPoint.Invoke(null, new object[] { new[] { dbPath, CmsUsername, CmsPassword } });
+            var invocation = entryPoint.Invoke(null, new object[] { FullArguments(dbPath) });
 
             // The compiler may elide the async state machine and emit a synchronous Main, so accept both.
             var exitCode = invocation is int code

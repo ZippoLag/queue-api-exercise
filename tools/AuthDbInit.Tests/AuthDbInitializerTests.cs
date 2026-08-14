@@ -6,32 +6,56 @@ using QueueApi.Auth;
 namespace AuthDbInit.Tests;
 
 /// <summary>
-/// Unit tests for <see cref="AuthDbInitializer"/>.
+/// Unit tests for <see cref="AuthDbInitializer"/> multi-user seeding.
 /// </summary>
 public class AuthDbInitializerTests
 {
     private const string CmsUsername = "cms-webhook";
     private const string CmsPassword = "aaaaaaaa-aaaa-aaaa-aaaa-aaaaaaaaaaaa";
+    private const string AdministratorUsername = "administrator";
+    private const string AdministratorPassword = "bbbbbbbb-bbbb-bbbb-bbbb-bbbbbbbbbbbb";
+    private const string RegularUsername = "regular-user";
+    private const string RegularPassword = "cccccccc-cccc-cccc-cccc-cccccccccccc";
 
     /// <summary>
-    /// Verifies a fresh store is created with the schema and the user is seeded with a verifiable hash.
+    /// The three reserved users the APIs expect, in the order the script seeds them.
+    /// </summary>
+    private static IReadOnlyCollection<UserSeed> ReservedUsers =>
+    [
+        new(CmsUsername, CmsPassword),
+        new(AdministratorUsername, AdministratorPassword),
+        new(RegularUsername, RegularPassword),
+    ];
+
+    /// <summary>
+    /// Verifies a fresh store is created with the schema and all three reserved users are seeded with
+    /// hashes that verify against the API's hasher.
     /// </summary>
     /// <remarks>
     /// Source business rule: spec "Credential store is provisioned by an initialization script",
-    /// scenario "Initializing a fresh store"; the seeded hash must verify against the API's hasher.
+    /// scenario "Initializing a fresh store" — the schema is created and the <c>cms-webhook</c>,
+    /// <c>administrator</c> and <c>regular-user</c> users are seeded with the supplied passwords.
     /// </remarks>
     [Fact]
-    public async Task InitializeAsync_OnFreshStore_CreatesSeededUser()
+    public async Task InitializeAsync_OnFreshStore_CreatesAllReservedUsers()
     {
         var connectionString = CreateTempConnectionString();
         try
         {
-            var result = await AuthDbInitializer.InitializeAsync(connectionString, CmsUsername, CmsPassword);
+            var results = await AuthDbInitializer.InitializeAsync(connectionString, ReservedUsers);
 
-            result.Should().Be(InitializationResult.Created);
-            var user = await FindUserAsync(connectionString, CmsUsername);
-            user.Should().NotBeNull();
-            Pbkdf2PasswordHasher.Verify(CmsPassword, user!.PasswordHash).Should().BeTrue();
+            results.Should().OnlyContain(result => result.Created);
+            results.Select(result => result.Username).Should().Equal(
+                CmsUsername, AdministratorUsername, RegularUsername);
+
+            var cms = await FindUserAsync(connectionString, CmsUsername);
+            Pbkdf2PasswordHasher.Verify(CmsPassword, cms!.PasswordHash).Should().BeTrue();
+
+            var administrator = await FindUserAsync(connectionString, AdministratorUsername);
+            Pbkdf2PasswordHasher.Verify(AdministratorPassword, administrator!.PasswordHash).Should().BeTrue();
+
+            var regular = await FindUserAsync(connectionString, RegularUsername);
+            Pbkdf2PasswordHasher.Verify(RegularPassword, regular!.PasswordHash).Should().BeTrue();
         }
         finally
         {
@@ -40,24 +64,25 @@ public class AuthDbInitializerTests
     }
 
     /// <summary>
-    /// Verifies re-running the initializer leaves the store unchanged and does not duplicate the user.
+    /// Verifies re-running the initializer leaves the store unchanged and does not duplicate users.
     /// </summary>
     /// <remarks>
     /// Source business rule: spec "Credential store is provisioned by an initialization script",
-    /// scenario "Re-running the initialization script".
+    /// scenario "Re-running the initialization script" — the second run completes without errors and
+    /// does not duplicate the seeded users.
     /// </remarks>
     [Fact]
-    public async Task InitializeAsync_WhenRunTwice_DoesNotDuplicateUser()
+    public async Task InitializeAsync_WhenRunTwice_DoesNotDuplicateUsers()
     {
         var connectionString = CreateTempConnectionString();
         try
         {
-            var firstRun = await AuthDbInitializer.InitializeAsync(connectionString, CmsUsername, CmsPassword);
-            var secondRun = await AuthDbInitializer.InitializeAsync(connectionString, CmsUsername, CmsPassword);
+            var firstRun = await AuthDbInitializer.InitializeAsync(connectionString, ReservedUsers);
+            var secondRun = await AuthDbInitializer.InitializeAsync(connectionString, ReservedUsers);
 
-            firstRun.Should().Be(InitializationResult.Created);
-            secondRun.Should().Be(InitializationResult.AlreadyExists);
-            (await CountUsersAsync(connectionString)).Should().Be(1);
+            firstRun.Should().OnlyContain(result => result.Created);
+            secondRun.Should().OnlyContain(result => !result.Created);
+            (await CountUsersAsync(connectionString)).Should().Be(3);
         }
         finally
         {
@@ -66,24 +91,67 @@ public class AuthDbInitializerTests
     }
 
     /// <summary>
-    /// Verifies re-running with a different password does not overwrite the existing user's hash.
+    /// Verifies a partially-initialized store only receives the missing users, without duplication.
+    /// </summary>
+    /// <remarks>
+    /// Source business rule: spec scenario "Re-running the initialization script" over a store that
+    /// already holds the cms user (e.g. seeded before this change): the administrator and regular-user
+    /// are added while cms-webhook is left unchanged, and no user is duplicated.
+    /// </remarks>
+    [Fact]
+    public async Task InitializeAsync_WhenSomeUsersAlreadyExist_SeedsOnlyMissingOnes()
+    {
+        var connectionString = CreateTempConnectionString();
+        try
+        {
+            await AuthDbInitializer.InitializeAsync(
+                connectionString, new[] { new UserSeed(CmsUsername, CmsPassword) });
+            var results = await AuthDbInitializer.InitializeAsync(connectionString, ReservedUsers);
+
+            results.Single(result => result.Username == CmsUsername).Created.Should().BeFalse();
+            results.Single(result => result.Username == AdministratorUsername).Created.Should().BeTrue();
+            results.Single(result => result.Username == RegularUsername).Created.Should().BeTrue();
+            (await CountUsersAsync(connectionString)).Should().Be(3);
+        }
+        finally
+        {
+            DeleteTempDatabase(connectionString);
+        }
+    }
+
+    /// <summary>
+    /// Verifies re-running with different passwords does not overwrite existing users' hashes.
     /// </summary>
     /// <remarks>
     /// Source business rule: spec "Credential store is provisioned by an initialization script"; the
-    /// store leaves existing users unchanged, so the originally seeded password keeps working.
+    /// store leaves existing users unchanged, so the originally seeded passwords keep working.
     /// </remarks>
     [Fact]
-    public async Task InitializeAsync_WhenRunWithDifferentPassword_LeavesExistingUserUnchanged()
+    public async Task InitializeAsync_WhenRunWithDifferentPasswords_LeavesExistingUsersUnchanged()
     {
         var connectionString = CreateTempConnectionString();
         try
         {
-            await AuthDbInitializer.InitializeAsync(connectionString, CmsUsername, CmsPassword);
-            var result = await AuthDbInitializer.InitializeAsync(connectionString, CmsUsername, "another-password");
+            await AuthDbInitializer.InitializeAsync(connectionString, ReservedUsers);
+            var results = await AuthDbInitializer.InitializeAsync(
+                connectionString,
+                new[]
+                {
+                    new UserSeed(CmsUsername, "another-cms-password"),
+                    new UserSeed(AdministratorUsername, "another-admin-password"),
+                    new UserSeed(RegularUsername, "another-regular-password"),
+                });
 
-            result.Should().Be(InitializationResult.AlreadyExists);
-            var user = await FindUserAsync(connectionString, CmsUsername);
-            Pbkdf2PasswordHasher.Verify(CmsPassword, user!.PasswordHash).Should().BeTrue();
+            results.Should().OnlyContain(result => !result.Created);
+
+            var cms = await FindUserAsync(connectionString, CmsUsername);
+            Pbkdf2PasswordHasher.Verify(CmsPassword, cms!.PasswordHash).Should().BeTrue();
+
+            var administrator = await FindUserAsync(connectionString, AdministratorUsername);
+            Pbkdf2PasswordHasher.Verify(AdministratorPassword, administrator!.PasswordHash).Should().BeTrue();
+
+            var regular = await FindUserAsync(connectionString, RegularUsername);
+            Pbkdf2PasswordHasher.Verify(RegularPassword, regular!.PasswordHash).Should().BeTrue();
         }
         finally
         {
