@@ -1,0 +1,41 @@
+{
+  // Compose orchestration for the local stack. The debug variant uses the
+  // explicit two-file composition from docs/design (developer-debugging D2):
+  // plain `docker compose up` must stay the production-image stack, so the
+  // dev override is only applied via the -f flags. Run the matching `down`
+  // with the same file set.
+  "version": "2.0.0",
+  "tasks": [
+    {
+      "label": "compose: up",
+      "type": "shell",
+      "command": "docker compose up -d",
+      "group": {
+        "kind": "build",
+        "isDefault": true
+      },
+      "problemMatcher": []
+    },
+    {
+      "label": "compose: up (debug)",
+      "type": "shell",
+      "command": "docker compose -f docker-compose.yml -f docker-compose.dev.yml up -d",
+      "group": "build",
+      "problemMatcher": []
+    },
+    {
+      "label": "compose: down",
+      "type": "shell",
+      "command": "docker compose -f docker-compose.yml -f docker-compose.dev.yml down",
+      "group": "build",
+      "problemMatcher": []
+    },
+    {
+      "label": "compose: reset (down -v)",
+      "type": "shell",
+      "command": "docker compose -f docker-compose.yml -f docker-compose.dev.yml down -v",
+      "group": "build",
+      "problemMatcher": []
+    }
+  ]
+}

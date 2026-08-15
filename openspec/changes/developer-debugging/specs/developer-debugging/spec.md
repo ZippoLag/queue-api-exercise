@@ -1,12 +1,12 @@
 ## Purpose
 
-Defines the developer debugging experience for the two APIs: a documented debugging workflow covering the host, the devcontainer, and the container surfaces; an explicit container debugging mode that runs both APIs from source against the same shared stores and ports as the production-image stack without altering the default `docker compose up`; and VS Code wiring (tasks and launch profiles) to orchestrate the stack and attach a debugger to container processes.
+Defines the developer debugging experience for the two APIs: a documented debugging workflow covering the host, the devcontainer, and the container surfaces; an explicit container debugging mode that runs both APIs from source with hot reload against the same stores the host development surface uses (the CmsWebhook project's `db/` folder) without altering the default `docker compose up`; and VS Code wiring (tasks and launch profiles) to orchestrate the stack and attach a debugger to container processes.
 
 ## ADDED Requirements
 
 ### Requirement: Documented debugging workflow for both APIs
 
-The repository SHALL document a debugging workflow that lets a developer attach a debugger to each API (CmsWebhook on port `5264`, Users on port `5265`), covering the host (`dotnet run`/F5), the devcontainer, and the composed-container surfaces, and stating when each is appropriate. The documentation SHALL warn that the composed stack and a host launch use the same host ports and therefore must not run at the same time, and SHALL state that host runs use the stores under the CmsWebhook project's `db/` directory while the composed stack uses the `queue-db` volume.
+The repository SHALL document a debugging workflow that lets a developer attach a debugger to each API (CmsWebhook on port `5264`, Users on port `5265`), covering the host (`dotnet run`/F5), the devcontainer, and the composed-container surfaces, and stating when each is appropriate. The documentation SHALL warn that the composed stack and a host launch use the same host ports and therefore must not run at the same time, SHALL state that the host and debug-container surfaces share the stores under the CmsWebhook project's `db/` directory, and SHALL state that the production-image stack uses its own `queue-db` volume.
 
 #### Scenario: Host debugging from the documentation
 
@@ -21,21 +21,21 @@ The repository SHALL document a debugging workflow that lets a developer attach 
 #### Scenario: Mode-mixing hazards are documented
 
 - **WHEN** the documentation describes running the stack in more than one mode
-- **THEN** it states the host-port collision (both the stack and host launches bind `5264`/`5265`) and the distinct store locations per mode (`db/` vs the `queue-db` volume)
+- **THEN** it states the host-port collision (both the stack and host launches bind `5264`/`5265`) and that the production-image stack keeps its isolated `queue-db` volume while the host and debug-container surfaces share the CmsWebhook project's `db/` folder
 
 ### Requirement: Container debugging mode without altering the default stack
 
-The repository SHALL provide an explicit, opt-in container debugging mode that runs both APIs from source with hot reload enabled against the same shared credential/entity stores and the same host ports as the production-image stack. Running `docker compose up` without the debug mode SHALL keep building and running the production Release images.
+The repository SHALL provide an explicit, opt-in container debugging mode that runs both APIs from source with hot reload enabled against the same credential/entity stores the host development surface uses — the CmsWebhook project's `db/` folder, bind-mounted into the debug containers — and on the same host ports as the production-image stack, so entities written by a host F5 session are visible in the debug stack and vice versa. Running `docker compose up` without the debug mode SHALL keep building and running the production Release images, which SHALL keep their own isolated `queue-db` volume.
 
-#### Scenario: Debug mode boots both APIs from source
+#### Scenario: Debug mode boots both APIs from source against the shared stores
 
 - **WHEN** the documented debug-mode command is run
-- **THEN** both APIs start from source with hot reload enabled, the shared credential store is seeded, and both APIs are reachable on the same host ports as the production-image stack
+- **THEN** both APIs start from source with hot reload enabled, the credential store is seeded in the host `db/` folder, both APIs are reachable on the same host ports as the production-image stack, and entities written by a host run are visible in the debug stack (and vice versa)
 
 #### Scenario: Default stack is unchanged
 
 - **WHEN** `docker compose up` is run without the debug mode
-- **THEN** the production images are built and run as specified by the containerization capability, with no debug-only behavior
+- **THEN** the production images are built and run as specified by the containerization capability, with no debug-only behavior and with the stores in the `queue-db` volume rather than the host `db/` folder
 
 ### Requirement: VS Code orchestration and attach
 

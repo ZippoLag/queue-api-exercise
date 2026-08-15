@@ -79,6 +79,16 @@ Conventions:
 - Async outbox processing is awaited by polling (the regular-user listing for entity presence, the administrator listing for a written version) with a timeout, so scenarios never assert before the worker has applied the event.
 - Each scenario gets a fresh `E2EEnvironment` (temp stores + both hosts), so tests stay independent and parallel-safe; the smoke script's stores live in a `mktemp -d` directory removed by its cleanup trap.
 
+## Debugging
+
+The README's [Debugging](../README.md#debugging) section is the user-facing guide; the conventions behind it are:
+
+- **Three surfaces, one at a time.** Host F5 (`dotnet run` via `launchSettings.json`, ports `5264`/`5265`) is the simplest and the default; the devcontainer offers the same surface inside the container; the composed containers (`docker-compose.dev.yml`) give full stack parity with hot reload. Only one surface runs at a time — host launches and the composed stack bind the same host ports, so mixing them is a port collision, and each surface has its own stores (see below).
+- **The debug override is explicit, not automatic.** `docker-compose.dev.yml` is applied only via `-f docker-compose.yml -f docker-compose.dev.yml`, never merged automatically. Naming it `docker-compose.override.yml` would silently turn plain `docker compose up` into watch/debug builds, breaking the containerization spec's "default stack unchanged" contract. Compose merge semantics matter here: volumes are a "unique resource" merged by container target, so the override's plain volume list replaces the base `queue-db` mount — and `!reset` is used exactly once, to clear the base `build:` so the plain SDK image is used (`!reset` clears an attribute; it does not replace a list). Requires Compose ≥ 2.24.4.
+- **Watch is the guaranteed baseline; attach is the bonus.** Debug mode runs `dotnet watch` (Debug builds, hot reload) from the SDK image with the repo bind-mounted at `/repo`; the C# extension can additionally attach to the `dotnet` process inside the container (`Attach: ... (container)` profiles, `sourceFileMap: /repo → workspace`). The production images are never touched for this.
+- **One store across the dev surfaces.** Host runs, the devcontainer, and the debug containers all use `src/CmsWebhook/CmsWebhook.Api/db/` — the debug override bind-mounts that folder at `/data`. Only the production-image stack keeps its `queue-db` volume; data written there is invisible to the dev surfaces. The override's `init` drops the base `chown` (chown'ing a host folder from inside a container rewrites host ownership); on Linux hosts, chown `db/` back after a debug session (`sudo chown -R $(id -u) src/CmsWebhook/CmsWebhook.Api/db`).
+- **Attach profiles are a host-OS concern.** The debug containers run on the host Docker engine and the devcontainer has no Docker access, so the `Attach: ... (container)` profiles in `.vscode/launch.json` require VS Code on the host OS; the host launch profiles (`Both APIs (host)`, per-API) work from any editor instance with the .NET SDK, including inside the devcontainer.
+
 ### MCP servers for Freebuff
 Freebuff loads MCP servers from `.agents/mcp.json` (searched in the project root, its parent, then `~/.agents/`), keyed by `mcpServers`. This repo wires two servers:
 

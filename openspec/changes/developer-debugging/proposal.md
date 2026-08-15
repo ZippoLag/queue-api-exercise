@@ -5,7 +5,7 @@ The repository ships a one-command container stack and accurate run documentatio
 ## What Changes
 
 - **A documented debugging workflow** covering the three surfaces — host `dotnet run`/F5, the devcontainer, and the composed containers — with when to use each, plus explicit warnings for the two real traps: the port collision when the stack and a host launch run at the same time, and the divergent store locations per mode.
-- **A container debugging mode** — a `docker-compose.dev.yml` override that runs both APIs from source (`dotnet watch`, Debug build) against the *same* shared stores and host ports as the production-image stack, so breakpoints and hot reload work against containers — while plain `docker compose up` keeps building the production Release images (the default stack is unchanged).
+- **A container debugging mode** — a `docker-compose.dev.yml` override that runs both APIs from source (`dotnet watch`, Debug build) against the **host `db/` stores shared with F5 runs** (the debug containers bind-mount `src/CmsWebhook/CmsWebhook.Api/db`), so breakpoints, hot reload, and data are shared across the dev surfaces — while plain `docker compose up` keeps building the production Release images against their own `queue-db` volume (the default stack is unchanged).
 - **VS Code wiring** — `.vscode/tasks.json` (compose orchestration: up prod-like, up debug, down, reset) and `.vscode/launch.json` (a compound "both APIs on the host" profile plus container-attach profiles).
 - **Docs updates** — a README "Debugging" section and `docs/development-style.md` conventions; a short note in `docs/configuration.md` on the debug override.
 

@@ -1,0 +1,72 @@
+# Explicit debug-mode override for the local stack. Applied deliberately with
+# `docker compose -f docker-compose.yml -f docker-compose.dev.yml ...` — it is
+# NOT named docker-compose.override.yml on purpose: that file is merged
+# automatically by plain `docker compose up`, which would silently turn the
+# default stack into watch/debug builds. Plain `docker compose up` keeps the
+# production Release images (see openspec containerization + developer-debugging
+# specs). Requires Docker Compose >= 2.24.4 (the `!reset` merge tag).
+#
+# Debug mode swaps both APIs to the SDK image with the repository bind-mounted
+# at /repo and runs `dotnet watch` (Debug builds, hot reload). The stores are
+# bind-mounted at /data from the HOST db/ folder (src/CmsWebhook/CmsWebhook.Api/db),
+# so host F5 runs and debug containers share the same two SQLite files — one
+# store across the dev surfaces. The production-image stack (`docker compose up`
+# without -f) keeps its isolated `queue-db` volume.
+#
+# Merge semantics (the reason this file is shaped this way):
+# - volumes are a "unique resource" merged by their container target, so a plain
+#   list replaces the base `queue-db:/data` mount with the host bind mount at
+#   the same target — no `!reset` (which would CLEAR the list, not replace it).
+# - ports and environment are inherited from the base file unchanged; the debug
+#   apps bind `0.0.0.0:8080` inside the container (like the production images),
+#   so the base `5264:8080` / `5265:8080` mappings keep working. Binding
+#   `localhost` inside a container is loopback-only and unreachable through a
+#   published port.
+# - `build: !reset null` clears the base `build:` so the plain SDK image is
+#   used instead of building the production Dockerfiles — the one place the
+#   tag is correct.
+#
+# init re-points to the same bind mount and drops the base chown: chown'ing a
+# host folder from inside a container would rewrite host file ownership. The SDK
+# containers run as root (like init), so they can write the folder as-is.
+# Linux-host caveat: files the debug containers create land root-owned;
+# `sudo chown -R $(id -u) src/CmsWebhook/CmsWebhook.Api/db` after a debug session
+# restores host ownership. Docker Desktop (macOS/Windows) maps uids and needs
+# none of this.
+services:
+  init:
+    # The base `.:/repo` mount is kept (working_dir /repo runs scripts/init-db.sh);
+    # the base `queue-db:/data` volume is replaced by the host bind mount at the
+    # same target. Both mounts listed explicitly for readability.
+    volumes:
+      - .:/repo
+      - ./src/CmsWebhook/CmsWebhook.Api/db:/data
+    entrypoint: ["/bin/bash", "-c", "scripts/init-db.sh"]
+
+  cms-api:
+    build: !reset null
+    image: mcr.microsoft.com/dotnet/sdk:9.0
+    working_dir: /repo
+    command: ["dotnet", "watch", "--project", "src/CmsWebhook/CmsWebhook.Api", "--no-launch-profile"]
+    volumes:
+      - .:/repo
+      - ./src/CmsWebhook/CmsWebhook.Api/db:/data
+    environment:
+      ASPNETCORE_ENVIRONMENT: Development
+      ASPNETCORE_URLS: http://0.0.0.0:8080
+      ConnectionStrings__AuthDb: Data Source=/data/queue-auth.db
+      ConnectionStrings__CmsDb: Data Source=/data/queue-cms.db;Default Timeout=30
+
+  users-api:
+    build: !reset null
+    image: mcr.microsoft.com/dotnet/sdk:9.0
+    working_dir: /repo
+    command: ["dotnet", "watch", "--project", "src/Users/Users.Api", "--no-launch-profile"]
+    volumes:
+      - .:/repo
+      - ./src/CmsWebhook/CmsWebhook.Api/db:/data
+    environment:
+      ASPNETCORE_ENVIRONMENT: Development
+      ASPNETCORE_URLS: http://0.0.0.0:8080
+      ConnectionStrings__AuthDb: Data Source=/data/queue-auth.db
+      ConnectionStrings__CmsDb: Data Source=/data/queue-cms.db;Default Timeout=30

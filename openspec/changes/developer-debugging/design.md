@@ -39,11 +39,11 @@ Docs (README "Debugging" + `docs/development-style.md`) present the surfaces in 
    │ needs .NET SDK    │ isolated env;    │ hot reload + attach; │
    │                   │ ports forwarded  │ needs host Docker    │
    └───────────────────┴──────────────────┴──────────────────────┘
-        stores: db/  (host & devcontainer, same mounted repo)
-        stores: queue-db volume  (containers)
+        stores: src/CmsWebhook/CmsWebhook.Api/db/  (ALL THREE share it)
+        stores: queue-db volume  (production-image stack only)
 ```
 
-Both traps are stated explicitly wherever modes can be mixed: **port collision** (stack and host launches both bind `5264`/`5265` — stop one before starting the other) and **split stores** (entities written in one mode are invisible in the other).
+The debug containers bind-mount the same `db/` folder host runs use (Option B), so entities written by an F5 session are visible in the debug stack and vice versa — one store across the dev surfaces. The remaining hazards are stated explicitly: **port collision** (stack and host launches both bind `5264`/`5265` — stop one before starting the other) and the **production-image stack's isolated `queue-db` volume** (entities written there are invisible to the dev surfaces). Attach profiles target the host Docker engine, so they require VS Code running on the host OS — the devcontainer has no Docker access (Path A).
 
 Rationale: the docs gap is the actual bug — the configs already half-exist (`launchSettings`), they're just undiscoverable and the container path is missing entirely. Alternatives considered: a single "debug everything" mega-command — rejected, each surface has a legitimately different audience and environment.
 
@@ -53,11 +53,14 @@ A separate override file invoked explicitly, e.g. `docker compose -f docker-comp
 
 The override:
 
-- reuses the proven SDK-image + repo-mount pattern from `init` (`image: mcr.microsoft.com/dotnet/sdk:9.0`, `volumes: [.:/repo, queue-db:/data]`);
-- runs `dotnet watch --project src/<Api>` in Debug so source edits hot-reload, with the same `ConnectionStrings__*` env vars pointing at `/data/*.db` and the same host ports `5264`/`5265` → in-container port from `launchSettings`/`ASPNETCORE_URLS` (Kestrel binds `localhost` inside the dev images, which is correct: the debugger attaches locally);
-- runs as **root** (the SDK image's default, like `init`) so the C# extension can drop its debugger (`vsdbg`) into the container for attach — the production images keep `USER app`.
+- reuses the proven SDK-image + repo-mount pattern from `init` (`image: mcr.microsoft.com/dotnet/sdk:9.0`, `volumes: [.:/repo, ...]`);
+- bind-mounts the **host `db/` folder** (`src/CmsWebhook/CmsWebhook.Api/db`) at `/data` in place of the `queue-db` volume, so the debug containers share stores with host F5 runs (Option B) — the same `ConnectionStrings__*` env vars point at `/data/*.db`, and the base port mappings (`5264:8080`, `5265:8080`) are kept, with the debug apps binding `http://0.0.0.0:8080` inside the container exactly like the production images (binding `localhost` inside a container is loopback-only and unreachable through the published host port); the override sets only `build: !reset null` to clear the base build so the plain SDK image is used — volumes are merged by target, not via `!reset`;
+- runs as **root** (the SDK image's default, like `init`) so the C# extension can drop its debugger (`vsdbg`) into the container for attach — the production images keep `USER app`;
+- re-points `init` at the same bind mount and **drops the base `chown -R 1654:1654 /data`** (chown'ing a host folder from inside a container would rewrite host file ownership), keeping the inherited repo mount so `scripts/init-db.sh` still runs from `working_dir: /repo`; seeding stays idempotent, so an already-seeded host `db/` is left unchanged.
 
 The init ordering (`depends_on: init: service_completed_successfully` and `cms-api` before `users-api`) is preserved so the debug stack provisions the shared schema identically.
+
+**Why the debug surface can share a host folder and the production-image stack cannot:** the SDK containers run as root and already bind-mount the repo, so uid ownership is a non-issue there; the production images run as the unprivileged `app` user (uid 1654), and writing into a host-owned folder from that uid breaks on Linux hosts and on macOS's slow bind-mount SQLite I/O. The `queue-db` volume remains the production-image stack's store by design.
 
 ### D3: VS Code wiring — tasks orchestrate, launch profiles attach
 
@@ -80,12 +83,13 @@ The README "Debugging" section is the primary artifact (D1's decision tree + the
 - [vsdbg attach inside containers depends on C# extension behavior] → hot reload (`dotnet watch`) is the guaranteed baseline of debug mode; attach is documented as "works with the C# extension" without being load-bearing.
 - [Debug override runs as root] → dev-only tooling, never a production image; mirrors the existing `init` service precedent.
 - [Temptation to switch to `.override.yml`] → D2 rationale is recorded in the file header comment; the containerization spec's "default stack unchanged" scenario is the guardrail.
-- [Store divergence between `db/` and the volume remains] → documented as a trap (D1); unifying stores would change dev behavior beyond this change's scope.
+- [Linux hosts: debug containers create root-owned files in the shared `db/`] → documented caveat (`sudo chown -R $(id -u) src/CmsWebhook/CmsWebhook.Api/db` after a debug session); Docker Desktop maps uids and needs nothing.
+- [Production-image stack still uses a separate volume] → deliberate: uid/perf/reset reasons in D2; stated as the one remaining store split in the docs.
 
 ## Migration Plan
 
-Additive only: new files (`.vscode/tasks.json`, `.vscode/launch.json`, `docker-compose.dev.yml`) and doc sections. Nothing existing changes; the default stack, images, scripts, CI, and all `dotnet run` workflows keep working untouched.
+Additive only: new files (`.vscode/tasks.json`, `.vscode/launch.json`, `docker-compose.dev.yml`) and doc sections. Nothing existing changes; the default stack, images, scripts, CI, and all `dotnet run` workflows keep working untouched. The debug override's store change (volume → host `db/` bind mount) affects only the opt-in debug mode.
 
 ## Open Questions
 
-None that affect the specs, approach, or task breakdown. (Whether the devcontainer should ever gain Docker access, and whether stores should be unified across surfaces, are deliberately deferred — both would change the approach and are out of scope here.)
+None that affect the specs, approach, or task breakdown. (Whether the devcontainer should ever gain Docker access is deliberately deferred — it would change the attach story and is out of scope here.)

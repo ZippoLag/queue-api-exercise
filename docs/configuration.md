@@ -80,6 +80,13 @@ above:
   any deployment in front of a load balancer.
 - **Re-seeding**: `docker compose down -v` deletes the volume (and the seeded users); the next
   `docker compose up` re-runs the init service and re-creates them.
+- **Debugging**: the stack above is the production-image stack — its stores live in the `queue-db`
+  volume. For breakpoints and hot reload, apply the explicit debug override —
+  `docker compose -f docker-compose.yml -f docker-compose.dev.yml up -d` — which runs both APIs from
+  source (`dotnet watch`) and **bind-mounts the host `db/` folder**
+  (`src/CmsWebhook/CmsWebhook.Api/db`) at `/data`, so the debug containers share the stores your host
+  `dotnet run` sessions use, on the same host ports as the default stack. See the README's
+  [Debugging](../README.md#debugging) section.
 
 ## Credential store
 

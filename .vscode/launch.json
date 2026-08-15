@@ -1,0 +1,59 @@
+{
+  // Debugging entry points for both APIs. The host profiles mirror the
+  // `http` profiles in each project's launchSettings.json (Development,
+  // ports 5264/5265) and are also available as the compound "Both APIs
+  // (host)" for a single F5. The attach profiles target the debug-mode
+  // containers started by the "compose: up (debug)" task (see
+  // docker-compose.dev.yml): pick the dotnet process inside the container,
+  // and sourceFileMap resolves breakpoints against the repo mounted at /repo.
+  //
+  // Why container profiles are "attach" and not "launch": a launch profile
+  // means VS Code STARTS the process itself, which only works where VS Code
+  // owns the process lifecycle (host F5, or inside the devcontainer). In a
+  // container the runtime starts the process, so the debugger can only
+  // connect to the already-running dotnet process — that is what attach is.
+  "version": "0.2.0",
+  "configurations": [
+    {
+      "name": "CmsWebhook (host)",
+      "type": "dotnet",
+      "request": "launch",
+      "projectPath": "${workspaceFolder}/src/CmsWebhook/CmsWebhook.Api/CmsWebhook.Api.csproj",
+      "launchProfile": "http"
+    },
+    {
+      "name": "Users (host)",
+      "type": "dotnet",
+      "request": "launch",
+      "projectPath": "${workspaceFolder}/src/Users/Users.Api/Users.Api.csproj",
+      "launchProfile": "http"
+    },
+    {
+      "name": "Attach: CmsWebhook (container)",
+      "type": "dotnet",
+      "request": "attach",
+      "projectPath": "${workspaceFolder}/src/CmsWebhook/CmsWebhook.Api/CmsWebhook.Api.csproj",
+      "processId": "${command:pickProcess}",
+      "sourceFileMap": {
+        "/repo": "${workspaceFolder}"
+      }
+    },
+    {
+      "name": "Attach: Users (container)",
+      "type": "dotnet",
+      "request": "attach",
+      "projectPath": "${workspaceFolder}/src/Users/Users.Api/Users.Api.csproj",
+      "processId": "${command:pickProcess}",
+      "sourceFileMap": {
+        "/repo": "${workspaceFolder}"
+      }
+    }
+  ],
+  "compounds": [
+    {
+      "name": "Both APIs (host)",
+      "configurations": ["CmsWebhook (host)", "Users (host)"],
+      "stopAll": true
+    }
+  ]
+}

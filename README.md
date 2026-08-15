@@ -23,6 +23,9 @@ The stores live in the `queue-db` named volume. `docker compose down` stops the 
 stores; `docker compose down -v` also deletes them, and the next `docker compose up` re-seeds the
 credential store automatically.
 
+For debugging (breakpoints, hot reload) see [Debugging](#debugging) — the production-image stack is
+**not** the debugging surface.
+
 ### Without Docker compose (manual execution)
 
 The following works whether you're running from within the provided devcontainer in a console, or in your host OS (provided you have the **.NET 9 SDK** and bash available):
@@ -68,6 +71,61 @@ curl -u administrator:a1b2c3d4-e5f6-4a7b-8c9d-0e1f2a3b4c5d -X POST http://127.0.
 
 > The passwords above are the local-development defaults — DO NOT use them outside local development. Serve
 > production over TLS (HTTPS). See [Configuration](docs/configuration.md).
+
+## Debugging
+
+Three surfaces, in order of simplicity. Only **one runs at a time**: the composed stack and host
+launches bind the same host ports (`5264`/`5265`).
+
+All three dev surfaces share **one store**: `src/CmsWebhook/CmsWebhook.Api/db/` — the debug containers
+bind-mount that same folder. Only the production-image stack (`docker compose up` without `-f`) uses
+the `queue-db` volume, so data written there is invisible to the dev surfaces (and vice versa).
+
+### 1. Host — simplest
+
+F5 in VS Code — the `Both APIs (host)` compound profile or the per-project profiles in
+`.vscode/launch.json` — or from a console:
+
+```bash
+./scripts/init-db.sh          # once: seeds the credential store
+# in two terminals:
+dotnet run --project src/CmsWebhook/CmsWebhook.Api   # CMS Webhook API on :5264
+dotnet run --project src/Users/Users.Api             # Users API on :5265
+```
+
+Breakpoints bind, hot reload applies, and the stores live under `src/CmsWebhook/CmsWebhook.Api/db/` —
+the same files the debug containers use.
+
+### 2. Devcontainer
+
+Same as host debugging, from the devcontainer console (ports `5264`/`5265` are forwarded to your host
+browser). The devcontainer has no Docker daemon, so it is for this surface only — not the containers
+below.
+
+### 3. Containers — full stack parity, hot reload
+
+```bash
+docker compose -f docker-compose.yml -f docker-compose.dev.yml up -d
+```
+
+Runs both APIs **from source** with `dotnet watch` (Debug builds, hot reload) against the **same host
+`db/` stores your F5 runs use** — entities written in either surface appear in the other. Requires
+Docker on the host and Docker Compose ≥ 2.24.4 (the override uses the `!reset` merge tag). The
+`.vscode/tasks.json` `compose: up (debug)` task runs the same command; tear down with the same `-f`
+file set (`... down`).
+
+**Attaching to the containers** — the `Attach: ... (container)` profiles in `.vscode/launch.json`
+target processes on your host's Docker engine, so they require VS Code running **on the host OS** (the
+devcontainer has no Docker access). Run the `compose: up (debug)` task, then attach. The `host`
+profiles work from any VS Code instance with the .NET SDK — including inside the devcontainer.
+
+> **Linux hosts only**: files the debug containers create in `db/` are owned by root; after a debug
+> session run `sudo chown -R $(id -u) src/CmsWebhook/CmsWebhook.Api/db` to restore host ownership.
+> Docker Desktop (macOS/Windows) maps uids and needs none of this.
+
+**The trap when mixing modes:**
+
+- **Port collision** — the stack and host launches both bind `5264`/`5265`; stop one before starting the other.
 
 ## Deployment
 
