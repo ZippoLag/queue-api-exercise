@@ -17,7 +17,7 @@
 #
 # ── 1. EDIT HERE ────────────────────────────────────────────────────────────────
 REGION="eu-west-3"            # AWS region — change freely before running (Paris default)
-ENV_NAME="demo"               # environment/stack name (repeat with a new name for more environments)
+ENV_NAME="queue-api-exercise"               # environment/stack name (repeat with a new name for more environments)
 DOMAIN=""                     # public domain (e.g. "example.com") + ROUTE53_ZONE_ID for real certs; empty = self-signed on the Elastic IP
 ROUTE53_ZONE_ID=""            # hosted zone id, only used when DOMAIN is set
 INSTANCE_TYPE="t4g.small"     # free trial through 2026-12-31; downgrade to t4g.micro after
@@ -144,10 +144,16 @@ else
     warn "No CI artifacts in S3 yet — building locally (installs the .NET SDK in CloudShell)."
   fi
   log "Installing the .NET 9 SDK (needed only for the local build)"
+  # CloudShell's persistent home is a fixed 1 GiB per region and cannot be expanded; the SDK
+  # (~700 MB extracted) plus the workspace clone and Terraform do not fit there, which fills
+  # $HOME and aborts the build. Install to the ephemeral disk instead — the SDK is only needed
+  # for this one-time local build and the ephemeral space is reclaimed when the session ends.
+  DOTNET_DIR="${TMPDIR:-/tmp}/queue-api-dotnet"
+  rm -rf "$DOTNET_DIR"
   curl -fsSL https://dot.net/v1/dotnet-install.sh -o /tmp/dotnet-install.sh
-  bash /tmp/dotnet-install.sh --channel 9.0 --install-dir "$HOME/.dotnet"
-  export PATH="$HOME/.dotnet:$PATH"
-  export DOTNET_ROOT="$HOME/.dotnet"
+  bash /tmp/dotnet-install.sh --channel 9.0 --install-dir "$DOTNET_DIR"
+  export PATH="$DOTNET_DIR:$PATH"
+  export DOTNET_ROOT="$DOTNET_DIR"
   (cd "$WORK_DIR/repo" && REGION="$REGION" ENV_NAME="$ENV_NAME" S3_BUCKET="$BUCKET" \
     INSTANCE_ID="$INSTANCE_ID" DOMAIN="$DOMAIN" bash scripts/deploy-aws.sh)
 fi
