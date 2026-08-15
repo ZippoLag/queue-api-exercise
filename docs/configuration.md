@@ -62,6 +62,25 @@ export ConnectionStrings__AuthDb="Data Source=/var/lib/queue-api/auth.db"
 export ConnectionStrings__CmsDb="Data Source=/var/lib/queue-api/cms.db;Default Timeout=30"
 ```
 
+## Running in containers
+
+The repository ships a `docker-compose.yml` (see the README Quickstart) that runs the whole stack in
+containers with one command. The container layout mirrors the environment-variable deployment pattern
+above:
+
+- Both APIs share a **named volume** (`queue-db`) mounted at `/data` inside each container, holding the
+  same two SQLite files (`/data/queue-auth.db`, `/data/queue-cms.db`); the connection strings are
+  supplied as environment variables pointing at those absolute paths.
+- The `init` one-shot service seeds the credential store (via `scripts/init-db.sh`, with the
+  local-development default passwords) and completes **before** either API starts
+  (`depends_on: condition: service_completed_successfully`).
+- Inside a container each API binds `http://0.0.0.0:8080` — the Dockerfiles set `ASPNETCORE_URLS`
+  explicitly, because Kestrel's default Production bind (`localhost`) is loopback-only and would be
+  unreachable from the published host port (or a load balancer). The same binding is a requirement for
+  any deployment in front of a load balancer.
+- **Re-seeding**: `docker compose down -v` deletes the volume (and the seeded users); the next
+  `docker compose up` re-runs the init service and re-creates them.
+
 ## Credential store
 
 Credentials live in the SQLite credential store (`db/queue-auth.db` by default — see above), provisioned idempotently by `scripts/init-db.sh`. The script's default `DB_PATH` already matches the APIs' own resolution (the CmsWebhook project's `db/` directory); override it with `DB_PATH` or point `ConnectionStrings:AuthDb` elsewhere and pass the absolute path.

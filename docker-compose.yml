@@ -1,0 +1,66 @@
+# Runs the full Queue-API stack locally in containers: seeds the shared
+# credential store, then starts both APIs against one shared volume holding the
+# two SQLite stores (the same files both APIs address in local development).
+#
+#   docker compose up           # start the stack (first run builds the images)
+#   docker compose down         # stop the stack (stores are preserved)
+#   docker compose down -v      # stop AND delete the stores; next `up` re-seeds
+#
+# The host ports match launchSettings.json (5264/5265), so the README curl
+# walkthrough works against the stack unchanged. Passwords are the local
+# development defaults from scripts/init-db.sh — local development only.
+services:
+  init:
+    # One-shot: seeds the shared credential store on the volume before either
+    # API starts. Uses the SDK image and the mounted repo to run the existing
+    # init tooling (no duplicated seeding logic).
+    #
+    # The SDK image runs as root; the API images run as the unprivileged `app`
+    # user (uid 1654 in the official .NET 8/9 runtime images). After seeding,
+    # hand the store directory over to that uid so the APIs can write the
+    # SQLite WAL/journal files.
+    image: mcr.microsoft.com/dotnet/sdk:9.0
+    working_dir: /repo
+    volumes:
+      - .:/repo
+      - queue-db:/data
+    environment:
+      DB_PATH: /data/queue-auth.db
+    entrypoint: ["/bin/bash", "-c", "scripts/init-db.sh && chown -R 1654:1654 /data"]
+
+  cms-api:
+    build:
+      context: .
+      dockerfile: src/CmsWebhook/CmsWebhook.Api/Dockerfile
+    ports:
+      - "5264:8080"
+    volumes:
+      - queue-db:/data
+    environment:
+      ASPNETCORE_ENVIRONMENT: Development
+      ConnectionStrings__AuthDb: Data Source=/data/queue-auth.db
+      ConnectionStrings__CmsDb: Data Source=/data/queue-cms.db;Default Timeout=30
+    depends_on:
+      init:
+        condition: service_completed_successfully
+
+  users-api:
+    build:
+      context: .
+      dockerfile: src/Users/Users.Api/Dockerfile
+    ports:
+      - "5265:8080"
+    volumes:
+      - queue-db:/data
+    environment:
+      ASPNETCORE_ENVIRONMENT: Development
+      ConnectionStrings__AuthDb: Data Source=/data/queue-auth.db
+      ConnectionStrings__CmsDb: Data Source=/data/queue-cms.db;Default Timeout=30
+    depends_on:
+      init:
+        condition: service_completed_successfully
+      cms-api:
+        condition: service_started
+
+volumes:
+  queue-db:

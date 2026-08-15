@@ -6,7 +6,26 @@ A platform-agnostic **.NET 9** API solution that accepts messages from an extern
 
 ## Quickstart
 
-> The repo provides a dev container with all dependencies and VSCode extensions. Otherwise you need the **.NET 9 SDK**.
+### Via Docker Compose
+
+One command runs everything — the credential-store seeding plus both APIs against one shared volume
+(requires Docker installed on your **host OS**; the [dev container](.devcontainer/devcontainer.json) is
+itself a Docker container and does not include a Docker daemon):
+
+```bash
+docker compose up        # first run builds the images; starts init + both APIs
+```
+
+- **CMS Webhook API** → http://127.0.0.1:5264
+- **Users API** → http://127.0.0.1:5265
+
+The stores live in the `queue-db` named volume. `docker compose down` stops the stack and keeps the
+stores; `docker compose down -v` also deletes them, and the next `docker compose up` re-seeds the
+credential store automatically.
+
+### Without Docker compose (manual execution)
+
+The following works whether you're running from within the provided devcontainer in a console, or in your host OS (provided you have the **.NET 9 SDK** and bash available):
 
 ```bash
 # from the project root
@@ -19,6 +38,7 @@ dotnet run --project src/CmsWebhook/CmsWebhook.Api   # CMS Webhook API on http:/
 dotnet run --project src/Users/Users.Api             # Users API on http://127.0.0.1:5265
 ```
 
+### Using/Testing the APIs:
 > The local stores live under `src/CmsWebhook/CmsWebhook.Api/db/`; the Users API points its base path at the
 > same directory so both APIs share the credential and entity stores (relative data sources are resolved
 > against `Data:DbBasePath` or the content root — see [Configuration](docs/configuration.md)).
