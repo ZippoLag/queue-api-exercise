@@ -63,3 +63,67 @@ jobs:
       # vertical over real HTTP.
       - name: Smoke test against real processes and stores
         run: bash scripts/smoke-e2e.sh
+
+  tf-validate:
+    name: Terraform format and validate
+    runs-on: ubuntu-latest
+    defaults:
+      run:
+        working-directory: infra/aws
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+
+      - name: Setup Terraform
+        uses: hashicorp/setup-terraform@v3
+        with:
+          terraform_version: 1.9.8
+
+      # Format and validate need no AWS credentials (local backend, no refresh). A full
+      # `terraform plan` requires real credentials, which only exist on `main` via the deploy
+      # workflow's OIDC role — the deploy job is the effective plan+apply review there.
+      - name: Format check
+        run: terraform fmt -check -recursive
+
+      - name: Init (local backend)
+        run: terraform init -backend=false
+
+      - name: Validate
+        run: terraform validate
+
+  deploy:
+    name: Deploy to AWS (main only)
+    if: github.event_name == 'push' && github.ref == 'refs/heads/main'
+    needs: [build-and-test, end-to-end]
+    runs-on: ubuntu-latest
+    permissions:
+      id-token: write
+      contents: read
+    concurrency:
+      group: deploy-main
+      cancel-in-progress: false
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+
+      - name: Setup .NET SDK
+        uses: actions/setup-dotnet@v4
+        with:
+          global-json-file: global.json
+
+      - name: Configure AWS credentials (OIDC, no stored keys)
+        uses: aws-actions/configure-aws-credentials@v4
+        with:
+          role-to-assume: arn:aws:iam::${{ secrets.AWS_ACCOUNT_ID }}:role/queue-api-deploy-${{ vars.AWS_ENV_NAME || 'demo' }}
+          aws-region: ${{ vars.AWS_REGION || 'eu-west-3' }}
+
+      # Publishes, uploads to S3, ships via SSM Run Command, and verifies the live
+      # deployment (health probes + smoke flow); fails the job on any check failure.
+      - name: Deploy and verify
+        run: bash scripts/deploy-aws.sh
+        env:
+          REGION: ${{ vars.AWS_REGION || 'eu-west-3' }}
+          ENV_NAME: ${{ vars.AWS_ENV_NAME || 'demo' }}
+          S3_BUCKET: ${{ secrets.AWS_S3_BUCKET }}
+          INSTANCE_ID: ${{ secrets.AWS_INSTANCE_ID }}
+          DOMAIN: ${{ vars.AWS_DOMAIN || '' }}

@@ -38,6 +38,7 @@ The double-underscore convention maps environment variables to configuration key
 - **Never commit connection strings, passwords, or other secrets.** The committed `appsettings*.json` files contain only non-sensitive defaults (logging levels, etc.).
 - **Development:** use user-secrets (`dotnet user-secrets set "ConnectionStrings:AuthDb" "Data Source=..."` from the API project — `CmsWebhook.Api` carries a `UserSecretsId` so the provider is wired automatically). Secrets stay out of the tree.
 - **Staging/Production:** supply secrets as environment variables, e.g. `ConnectionStrings__CmsDb="Data Source=/var/queue/cms.db"`.
+- **AWS deployment (this repository):** secrets are stored in **SSM Parameter Store** (`SecureString`, standard tier) and rendered into the API processes' environment at boot by the instance; **fresh random passwords are generated at environment creation** — the committed local-development defaults are never used outside local development (see the README [Deployment](../README.md#deployment) section). The default region is **`eu-west-3` (Paris)**, changeable via the `REGION` variable at the top of `scripts/bootstrap-aws.sh`.
 - The chain is provider-neutral by design: an external secret store (AWS Secrets Manager, SSM Parameter Store, etc.) can be added later as another provider without rework.
 
 ## Database base directory
@@ -77,7 +78,9 @@ above:
 - Inside a container each API binds `http://0.0.0.0:8080` — the Dockerfiles set `ASPNETCORE_URLS`
   explicitly, because Kestrel's default Production bind (`localhost`) is loopback-only and would be
   unreachable from the published host port (or a load balancer). The same binding is a requirement for
-  any deployment in front of a load balancer.
+  **any deployment in front of a proxy or load balancer**, including the AWS footprint: the systemd
+  units there set `ASPNETCORE_URLS=http://0.0.0.0:8080` (CMS API) and `:8081` (Users API) so Caddy
+  can reach them.
 - **Re-seeding**: `docker compose down -v` deletes the volume (and the seeded users); the next
   `docker compose up` re-runs the init service and re-creates them.
 - **Debugging**: the stack above is the production-image stack — its stores live in the `queue-db`
@@ -105,3 +108,5 @@ The CMS event database (`db/queue-cms.db` by default, configurable via `Connecti
 ## TLS requirement
 
 Basic authentication transmits credentials as base64, which is *not* encryption. Production deployments of `CmsWebhook.Api` MUST serve over TLS (HTTPS); the plain-http profile in `launchSettings.json` is for local development only.
+
+In the AWS deployment, TLS is terminated by **Caddy on the node** — Let's Encrypt certificates when a domain is configured, or a self-signed internal certificate over the public IP when not (both enforce HTTPS; the domainless variant needs `curl -k` or an imported CA). Plain HTTP redirects to HTTPS.

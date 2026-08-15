@@ -1,0 +1,116 @@
+#!/bin/bash
+# Rendered from Terraform — installs the .NET 9 runtime and Caddy, mounts the EBS store
+# volume, renders the systemd EnvironmentFiles from SSM, and installs the Caddyfile and
+# systemd units. The credential store itself is seeded at the FIRST DEPLOY (published
+# AuthDbInit via the deploy run-command), because this node has the runtime only.
+set -euo pipefail
+exec > >(tee -a /var/log/queue-api-user-data.log) 2>&1
+
+REGION="${region}"
+ENV_NAME="${env_name}"
+
+log() { echo "[queue-api user-data] $*"; }
+
+# --- 1. .NET 9 ASP.NET Core runtime -------------------------------------------
+if ! command -v dotnet >/dev/null 2>&1; then
+  log "installing .NET 9 ASP.NET Core runtime"
+  curl -fsSL https://dot.net/v1/dotnet-install.sh -o /tmp/dotnet-install.sh
+  bash /tmp/dotnet-install.sh --channel 9.0 --runtime aspnetcore --install-dir /usr/share/dotnet
+  ln -sf /usr/share/dotnet/dotnet /usr/bin/dotnet
+fi
+
+# --- 2. Caddy (pinned GitHub release; not in the AL2023 repos) ----------------
+if ! command -v caddy >/dev/null 2>&1; then
+  log "installing Caddy"
+  curl -fsSL -o /tmp/caddy.tar.gz \
+    "https://github.com/caddyserver/caddy/releases/download/v2.8.4/caddy_2.8.4_linux_${arch_download}.tar.gz"
+  tar -xzf /tmp/caddy.tar.gz -C /usr/local/bin caddy
+fi
+
+# --- 3. EBS store volume: format once, mount, persist in /etc/fstab -----------
+mkdir -p /var/lib/queue-api
+EBS_DEV=""
+while read -r dev; do
+  if [ "$(lsblk -dno SERIAL "$dev" 2>/dev/null || true)" = "${volume_id}" ]; then
+    EBS_DEV="$dev"
+    break
+  fi
+done < <(lsblk -dpno NAME)
+if [ -z "$EBS_DEV" ] && [ -b /dev/xvdf ]; then
+  EBS_DEV=/dev/xvdf
+fi
+if [ -n "$EBS_DEV" ] && ! mountpoint -q /var/lib/queue-api; then
+  if ! blkid "$EBS_DEV" >/dev/null 2>&1; then
+    log "formatting store volume $EBS_DEV"
+    mkfs.ext4 "$EBS_DEV"
+  fi
+  log "mounting store volume $EBS_DEV"
+  mount "$EBS_DEV" /var/lib/queue-api
+  grep -q "$EBS_DEV /var/lib/queue-api" /etc/fstab ||
+    echo "$EBS_DEV /var/lib/queue-api ext4 defaults,noatime 0 0" >> /etc/fstab
+fi
+
+# --- 4. Secrets: SSM SecureString parameters -> systemd EnvironmentFiles ------
+log "rendering environment files from SSM"
+read_ssm() { aws ssm get-parameter --region "$REGION" --name "$1" --with-decryption --query Parameter.Value --output text; }
+CMS_PW="$(read_ssm "/queue-api/$ENV_NAME/cms-password")"
+ADMIN_PW="$(read_ssm "/queue-api/$ENV_NAME/admin-password")"
+REGULAR_PW="$(read_ssm "/queue-api/$ENV_NAME/regular-password")"
+AUTH_DB="$(read_ssm "/queue-api/$ENV_NAME/auth-db")"
+CMS_DB="$(read_ssm "/queue-api/$ENV_NAME/cms-db")"
+mkdir -p /etc/queue-api
+cat > /etc/queue-api/cms.env <<EOF
+ASPNETCORE_ENVIRONMENT=Production
+ASPNETCORE_URLS=http://0.0.0.0:8080
+ConnectionStrings__AuthDb=$${AUTH_DB}
+ConnectionStrings__CmsDb=$${CMS_DB}
+EOF
+cat > /etc/queue-api/users.env <<EOF
+ASPNETCORE_ENVIRONMENT=Production
+ASPNETCORE_URLS=http://0.0.0.0:8081
+ConnectionStrings__AuthDb=$${AUTH_DB}
+ConnectionStrings__CmsDb=$${CMS_DB}
+EOF
+chmod 600 /etc/queue-api/*.env
+
+# --- 5. Caddyfile + Caddy service ---------------------------------------------
+mkdir -p /etc/caddy
+cat > /etc/caddy/Caddyfile <<'CADDYEOF'
+${caddyfile}
+CADDYEOF
+
+cat > /etc/systemd/system/caddy.service <<'UNITEOF'
+[Unit]
+Description=Caddy web server (TLS termination for the queue APIs)
+After=network-online.target
+Wants=network-online.target
+
+[Service]
+Type=notify
+ExecStart=/usr/local/bin/caddy run --config /etc/caddy/Caddyfile --adapter caddyfile
+ExecReload=/usr/local/bin/caddy reload --config /etc/caddy/Caddyfile --adapter caddyfile
+TimeoutStopSec=5
+LimitNOFILE=1048576
+LimitNPROC=512
+PrivateTmp=true
+ProtectSystem=full
+Restart=on-failure
+RestartSec=5
+
+[Install]
+WantedBy=multi-user.target
+UNITEOF
+
+# --- 6. API systemd units (rendered from templates) ---------------------------
+cat > /etc/systemd/system/cms-api.service <<'UNITEOF'
+${cms_unit}
+UNITEOF
+cat > /etc/systemd/system/users-api.service <<'UNITEOF'
+${users_unit}
+UNITEOF
+
+systemctl daemon-reload
+systemctl enable --now caddy
+# The API services start once the first deploy places their artifacts under /opt/queue-api;
+# the deploy run-command seeds the store and starts them in order (cms-api first).
+log "user-data complete"

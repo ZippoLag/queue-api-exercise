@@ -1,0 +1,17 @@
+[Unit]
+Description=Queue API — CMS Webhook
+After=network-online.target
+Wants=network-online.target
+
+[Service]
+Type=simple
+# Rendered at boot from SSM (see user-data); binds all interfaces, never the
+# loopback-only Production default.
+EnvironmentFile=/etc/queue-api/cms.env
+WorkingDirectory=/opt/queue-api/cms
+ExecStart=/opt/queue-api/cms/CmsWebhook.Api
+Restart=on-failure
+RestartSec=5
+
+[Install]
+WantedBy=multi-user.target

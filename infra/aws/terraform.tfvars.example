@@ -1,0 +1,26 @@
+# Copy to terraform.tfvars (gitignored) or, preferably, run scripts/bootstrap-aws.sh
+# which supplies all of these values automatically (region defaults to eu-west-3).
+
+region        = "eu-west-3" # Paris — change freely before running
+env_name      = "demo"
+instance_type = "t4g.small" # free trial through 2026-12-31; downgrade to t4g.micro after
+instance_arch = "arm64"
+
+# Domainless (default): TLS via self-signed internal certificates on the Elastic IP —
+# cms at https://<ip>, users at https://<ip>:8443. Zero DNS cost.
+# domain = ""
+# route53_zone_id = ""
+
+# With a real domain: Let's Encrypt certificates for cms.<domain> and users.<domain>.
+# domain           = "example.com"
+# route53_zone_id  = "Z1234567890EXAMPLE"
+
+# CI deploy OIDC role (skip or leave empty if you only deploy from the console script).
+# github_org  = "your-github-org-or-username"
+# github_repo = "queue-api-exercise" # optional: scope to one repo
+
+# Passwords are normally generated fresh by scripts/bootstrap-aws.sh; provide them here
+# only for a fully deterministic replay.
+# cms_password     = "…"
+# admin_password   = "…"
+# regular_password = "…"

@@ -1,0 +1,17 @@
+[Unit]
+Description=Queue API — Users
+# Must start after the CMS Webhook API: its startup provisions the shared CMS schema
+# (cms_event_log + cms_entities) on the store this API reads.
+After=network-online.target cms-api.service
+Wants=network-online.target
+
+[Service]
+Type=simple
+EnvironmentFile=/etc/queue-api/users.env
+WorkingDirectory=/opt/queue-api/users
+ExecStart=/opt/queue-api/users/Users.Api
+Restart=on-failure
+RestartSec=5
+
+[Install]
+WantedBy=multi-user.target
