@@ -2,7 +2,7 @@
 
 ### Requirement: CI deploys main to AWS
 
-The CI workflow SHALL include a deployment stage that runs on pushes to `main` only after the existing build, test, coverage, spec, and end-to-end gates pass. The stage SHALL deploy both APIs to the AWS footprint and SHALL verify the live deployment (health probes and the smoke flow) before reporting success; a failure anywhere in the stage SHALL fail the workflow without leaving the deployment half-applied.
+The CI workflow SHALL include a deployment stage that runs on pushes to `main` only after the existing build, test, coverage, spec, and end-to-end gates pass. The stage SHALL publish both APIs, upload the publish output to the S3 artifact bucket, deploy both APIs to the AWS footprint, and SHALL verify the live deployment (health probes and the smoke flow) before reporting success; a failure anywhere in the stage SHALL fail the workflow without leaving the deployment half-applied.
 
 #### Scenario: Deploy runs only after gates pass
 
@@ -13,6 +13,11 @@ The CI workflow SHALL include a deployment stage that runs on pushes to `main` o
 
 - **WHEN** a push to `main` fails any existing quality gate
 - **THEN** the deployment stage does not run
+
+#### Scenario: Published artifacts are retrievable by the console bootstrap
+
+- **WHEN** the deployment stage has published both APIs
+- **THEN** the publish output is synced to the versioned S3 artifact bucket before being applied, so the same artifacts are available to the console bootstrap script
 
 #### Scenario: Live verification gates the deploy result
 
