@@ -9,11 +9,13 @@
 # terraform apply is idempotent.
 #
 # Usage:
-#   bash scripts/bootstrap-aws.sh [--build] [--remote-state]
+#   bash scripts/bootstrap-aws.sh [--build] [--remote-state] [--infra-only]
 #
 #   --build         also build the artifacts locally (installs the .NET SDK in CloudShell)
 #                   and perform the first deploy, even if the artifact bucket is empty
 #   --remote-state  create the S3 state bucket + DynamoDB lock table and use them
+#   --infra-only    stop after creating the resources; CI (GitHub Actions) publishes the
+#                   artifacts and deploys them instead of this script doing a first deploy
 #
 # ── 1. EDIT HERE ────────────────────────────────────────────────────────────────
 REGION="eu-west-3"            # AWS region — change freely before running (Paris default)
@@ -37,10 +39,12 @@ fail() { echo "[Error] $*" >&2; exit 1; }
 
 BUILD_FLAG=0
 REMOTE_STATE=0
+INFRA_ONLY=0
 for arg in "$@"; do
   case "$arg" in
     --build)        BUILD_FLAG=1 ;;
     --remote-state) REMOTE_STATE=1 ;;
+    --infra-only)   INFRA_ONLY=1 ;;
     *) echo "[Error] Unknown argument: $arg" >&2; exit 1 ;;
   esac
 done
@@ -49,16 +53,24 @@ command -v aws >/dev/null 2>&1 || fail "The AWS CLI is required (preinstalled in
 command -v git >/dev/null 2>&1 || fail "git is required (preinstalled in CloudShell)."
 
 # ── 2. Tooling ───────────────────────────────────────────────────────────────────
-if ! command -v terraform >/dev/null 2>&1; then
-  log "Terraform not found — installing to $HOME/.local/bin"
+# CloudShell's persistent $HOME is 1 GiB and cannot grow. The repo clone is small; it is
+# Terraform plus the ~600 MB AWS provider plugin (normally under .terraform/) that fills
+# it. Install Terraform and point TF_DATA_DIR at the ephemeral /tmp disk so the heavy
+# bits are reclaimed when the session ends; only the small clone and its state stay in
+# $HOME.
+TF_INSTALL_DIR="${TMPDIR:-/tmp}/queue-api-terraform"
+export TF_DATA_DIR="${TMPDIR:-/tmp}/queue-api-tf-data"
+mkdir -p "$TF_DATA_DIR"
+if [ ! -x "$TF_INSTALL_DIR/terraform" ]; then
+  log "Terraform not found — installing to $TF_INSTALL_DIR"
   TERRAFORM_VERSION="1.9.8"
-  mkdir -p "$HOME/.local/bin"
+  mkdir -p "$TF_INSTALL_DIR"
   curl -fsSL -o /tmp/terraform.zip \
     "https://releases.hashicorp.com/terraform/${TERRAFORM_VERSION}/terraform_${TERRAFORM_VERSION}_linux_amd64.zip"
-  (cd /tmp && unzip -oq terraform.zip -d "$HOME/.local/bin")
-  export PATH="$HOME/.local/bin:$PATH"
-  command -v terraform >/dev/null 2>&1 || fail "Terraform install failed."
+  (cd /tmp && unzip -oq terraform.zip -d "$TF_INSTALL_DIR")
 fi
+export PATH="$TF_INSTALL_DIR:$PATH"
+command -v terraform >/dev/null 2>&1 || fail "Terraform install failed."
 log "terraform: $(terraform version | head -1)"
 
 # ── 3. Repository ─────────────────────────────────────────────────────────────────
@@ -135,6 +147,27 @@ rm -f "$TFVARS"
 INSTANCE_ID="$(terraform output -raw instance_id)"
 BUCKET="$(terraform output -raw artifact_bucket)"
 log "Environment ready: instance=$INSTANCE_ID bucket=$BUCKET"
+
+if [ "$INFRA_ONLY" = "1" ]; then
+  ACCOUNT_ID="$(aws sts get-caller-identity --query Account --output text)"
+  echo
+  echo "============================================================"
+  echo "  Queue API — infrastructure created (CI will deploy)"
+  echo "============================================================"
+  echo "  Region:  $REGION"
+  echo "  Stack:   $ENV_NAME"
+  echo
+  echo "  Set these GitHub secrets/vars, then push to main:"
+  echo "    AWS_ACCOUNT_ID    (secret)   = $ACCOUNT_ID"
+  echo "    AWS_S3_BUCKET     (secret)   = $BUCKET"
+  echo "    AWS_INSTANCE_ID   (secret)   = $INSTANCE_ID"
+  echo "    AWS_ENV_NAME      (variable) = $ENV_NAME"
+  echo "    AWS_REGION        (variable) = $REGION"
+  echo
+  echo "  The CI deploy job publishes the artifacts to S3 and ships them to the node."
+  echo "============================================================"
+  exit 0
+fi
 
 # ── 6. Artifacts + first deploy ───────────────────────────────────────────────────
 if [ "$BUILD_FLAG" = "0" ] && aws s3 ls "s3://$BUCKET/latest/" --region "$REGION" | grep -q .; then

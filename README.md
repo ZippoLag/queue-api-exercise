@@ -149,9 +149,12 @@ environment, and performs the first deploy. **Change the `REGION` variable first
 bash <(curl -fsSL https://raw.githubusercontent.com/ZippoLag/queue-api-exercise/main/scripts/bootstrap-aws.sh)
 ```
 
-> CloudShell runs as your logged-in console identity — no access keys. On a fresh account the artifact
-> bucket is empty, so the script automatically installs the .NET SDK in CloudShell and builds locally
-> for the first deploy; pass `--build` only to force a local build even when CI artifacts already exist.
+> CloudShell runs as your logged-in console identity — no access keys. Terraform and its provider
+> plugins (the ~600 MB AWS provider) are installed under `/tmp` (ephemeral), so they don't consume
+> CloudShell's 1 GB persistent `$HOME` — only the small clone and its Terraform state live there. On a
+> fresh account the artifact bucket is empty, so the script installs the .NET SDK and builds locally
+> for the first deploy; pass `--infra-only` to skip that and let the CI deploy job (GitHub Actions)
+> publish and ship the artifacts instead (set the secrets from the printed report, then push to `main`).
 
 ### Topology
 
@@ -210,6 +213,10 @@ bash <(curl -fsSL https://raw.githubusercontent.com/ZippoLag/queue-api-exercise/
 
 - **Rollback**: `scripts/deploy-aws.sh --rollback` restores the previous artifacts kept on the
   node as `*.previous` (or re-run the deploy job with a prior S3 object version).
+- **Tear down**: `scripts/teardown-aws.sh` destroys the whole Terraform-managed footprint. Run it
+  from CloudShell against the same clone that holds the local state (it disables the node's
+  termination protection first); pass `--all` to also delete the local clone and the Terraform
+  install.
 
 ### CI deploy — GitHub secrets and vars
 
