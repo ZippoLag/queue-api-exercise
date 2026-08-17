@@ -95,5 +95,6 @@ coverage ratchet, end-to-end smoke tests, spec discipline, and Terraform validat
 - [Testing](docs/testing.md) — test layout, coverage ratchet, CI gates
 - [Tooling](docs/tooling.md) — Freebuff/OpenSpec/OpenLore installation and MCP wiring
 - [Deployment](docs/deployment-aws.md) — AWS deployment runbook
+- [API contract](docs/api-contract.md) — what each endpoint accepts, returns, and how it can fail (the machine-readable contract lives in each API's `/openapi/v1.json`, browsable via Scalar at `/scalar/v1`)
 
 The **canonical documentation sources remain these Markdown files and the OpenSpec specs** (`openspec/specs`) — the hosted site is a generated view of them, never a separate copy.

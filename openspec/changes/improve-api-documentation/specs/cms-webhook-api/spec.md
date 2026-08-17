@@ -1,0 +1,35 @@
+## MODIFIED Requirements
+
+### Requirement: OpenAPI document
+
+The CMS Webhook API SHALL expose an OpenAPI document describing its endpoints, generated from the endpoint code, at `/openapi/v1.json`. The document SHALL be reachable without authentication, SHALL stay in sync with the implemented endpoints — including their actual status codes, request and response schemas, and authentication requirements — and SHALL describe the accepted ingestion request shape. The API SHALL also serve a browsable API reference UI, generated from the same document, at `/scalar/v1`, in every environment, reachable without authentication.
+
+#### Scenario: Contract served anonymously
+
+- **WHEN** a client requests `GET /openapi/v1.json` without an `Authorization` header
+- **THEN** the API responds with `200 OK` and an OpenAPI document describing the API's endpoints
+
+#### Scenario: Contract describes the endpoints
+
+- **WHEN** a client reads the served OpenAPI document
+- **THEN** the document contains the `/cms/events` and `/health` endpoints with their HTTP methods
+
+#### Scenario: Contract matches the implemented status codes
+
+- **WHEN** a client reads the served OpenAPI document
+- **THEN** each operation's documented responses match the status codes the endpoint actually returns (`201 Created` for accepted ingestion, `400 Bad Request` for invalid bodies, `401 Unauthorized` for missing or invalid credentials)
+
+#### Scenario: Contract documents the ingestion request shape
+
+- **WHEN** a client reads the served OpenAPI document
+- **THEN** the `POST /cms/events` operation declares a request body schema covering both accepted forms — a single event object and a batch array of event objects — with per-field descriptions for `type` (one of `publish`, `update`, `unPublish`, `delete`, case-sensitive), `id`, `payload`, `version`, and `timestamp`
+
+#### Scenario: Contract declares the authentication scheme
+
+- **WHEN** a client reads the served OpenAPI document
+- **THEN** the protected operations declare an HTTP Basic security scheme with a request-level security requirement
+
+#### Scenario: API reference UI served in all environments
+
+- **WHEN** a client requests `GET /scalar/v1` without an `Authorization` header in any environment, including Staging and Production
+- **THEN** the API responds with `200 OK` and the browsable API reference UI

@@ -67,6 +67,53 @@ builder.Services.AddOpenApi(options =>
             },
         };
 
+        // Every operation except the anonymous liveness probe requires HTTP Basic authentication; declare
+        // the scheme in components and attach it per operation so consumers (and the Scalar UI) see the
+        // auth contract instead of an empty components section.
+        document.Components ??= new OpenApiComponents();
+        var basicScheme = new OpenApiSecurityScheme
+        {
+            Type = SecuritySchemeType.Http,
+            Scheme = "basic",
+            Description = "HTTP Basic authentication against the shared credential store.",
+            Reference = new OpenApiReference { Type = ReferenceType.SecurityScheme, Id = "basic" },
+        };
+        document.Components.SecuritySchemes["basic"] = basicScheme;
+        foreach (var (path, pathItem) in document.Paths)
+        {
+            if (path == "/health")
+            {
+                continue;
+            }
+
+            foreach (var operation in pathItem.Operations.Values)
+            {
+                operation.Security = new List<OpenApiSecurityRequirement> { new() { [basicScheme] = [] } };
+            }
+        }
+
+        // The entity contracts live on the endpoint's Configure*Operation helpers: the handlers return
+        // IResult, so the generator cannot infer the response schemas or the real status codes (change
+        // improve-api-documentation).
+        if (document.Paths.TryGetValue("/entities", out var entitiesPath)
+            && entitiesPath.Operations.TryGetValue(OperationType.Get, out var listOperation))
+        {
+            EntityEndpoints.ConfigureListOperation(listOperation);
+        }
+
+        foreach (var visibilityPathName in new[] { "/entities/{id}/disable", "/entities/{id}/enable" })
+        {
+            if (document.Paths.TryGetValue(visibilityPathName, out var visibilityPath)
+                && visibilityPath.Operations.TryGetValue(OperationType.Post, out var visibilityOperation))
+            {
+                EntityEndpoints.ConfigureSetVisibilityOperation(visibilityOperation);
+            }
+        }
+
+        // A relative server URL resolves against the origin the document is fetched from, so the contract
+        // never advertises a hardcoded http:// scheme for the TLS-only deployment.
+        document.Servers = new List<OpenApiServer> { new() { Url = "/" } };
+
         return Task.CompletedTask;
     });
 });

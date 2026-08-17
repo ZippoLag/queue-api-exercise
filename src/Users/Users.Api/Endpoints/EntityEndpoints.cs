@@ -1,4 +1,5 @@
 using System.Security.Claims;
+using Microsoft.OpenApi.Models;
 using Users.Application;
 
 namespace Users.Api.Endpoints;
@@ -12,6 +13,10 @@ namespace Users.Api.Endpoints;
 /// the administrator-only policy protects the enable/disable commands (design decision 1 of the
 /// users-api-vertical change). The administrator's role for the listing is resolved from the principal
 /// against the configured administrator username, keeping concrete usernames out of the Application layer.
+/// The OpenAPI contract is declared in <see cref="ConfigureListOperation"/> and
+/// <see cref="ConfigureSetVisibilityOperation"/>, invoked from the <c>AddOpenApi</c> document transformer
+/// (change improve-api-documentation): operation-level <c>WithOpenApi</c> callbacks are not applied by the
+/// 9.0.18 generator, so the contract is set where it is guaranteed to run.
 /// </remarks>
 public static class EntityEndpoints
 {
@@ -52,6 +57,101 @@ public static class EntityEndpoints
             .WithTags("entities");
 
         return endpoints;
+    }
+
+    /// <summary>
+    /// Declares the response contract of <c>GET /entities</c>: the item schema and its status codes.
+    /// </summary>
+    /// <remarks>
+    /// The handler returns <c>IResult</c>, so the response shape is declared explicitly; property names
+    /// match the default System.Text.Json serialization (PascalCase) of <c>EntityListItem</c>. The
+    /// authorization layer adds 401 (missing credentials) and 403 (the reserved cms-webhook user), so the
+    /// generated default 200-only contract would lie about the failure modes.
+    /// </remarks>
+    /// <param name="operation">The generated OpenAPI operation to correct; mutated in place.</param>
+    public static void ConfigureListOperation(OpenApiOperation operation)
+    {
+        var itemSchema = new OpenApiSchema
+        {
+            Type = "object",
+            Required = new HashSet<string> { "Id", "IsVisibleByAdmin", "LatestVersion", "UpdatedAt", "Payload" },
+            Properties = new Dictionary<string, OpenApiSchema>
+            {
+                ["Id"] = new OpenApiSchema { Type = "string", Description = "The external entity's id." },
+                ["IsVisibleByAdmin"] = new OpenApiSchema
+                {
+                    Type = "boolean",
+                    Description = "Whether an administrator has disabled the entity for regular users.",
+                },
+                ["LatestVersion"] = new OpenApiSchema
+                {
+                    Type = "integer",
+                    Format = "int32",
+                    Description = "The latest known data version.",
+                },
+                ["UpdatedAt"] = new OpenApiSchema
+                {
+                    Type = "string",
+                    Format = "date-time",
+                    Description = "When the latest version was last updated.",
+                },
+                ["Payload"] = new OpenApiSchema
+                {
+                    Type = "object",
+                    Description = "The latest payload as a raw JSON object.",
+                },
+            },
+        };
+
+        operation.Responses = new OpenApiResponses
+        {
+            ["200"] = new OpenApiResponse
+            {
+                Description = "The published entities visible to the caller (all for the administrator, enabled only for regular users).",
+                Content = new Dictionary<string, OpenApiMediaType>
+                {
+                    ["application/json"] = new OpenApiMediaType
+                    {
+                        Schema = new OpenApiSchema { Type = "array", Items = itemSchema },
+                        Example = new Microsoft.OpenApi.Any.OpenApiArray
+                        {
+                            new Microsoft.OpenApi.Any.OpenApiObject
+                            {
+                                ["Id"] = new Microsoft.OpenApi.Any.OpenApiString("entity-1"),
+                                ["IsVisibleByAdmin"] = new Microsoft.OpenApi.Any.OpenApiBoolean(true),
+                                ["LatestVersion"] = new Microsoft.OpenApi.Any.OpenApiInteger(1),
+                                ["UpdatedAt"] = new Microsoft.OpenApi.Any.OpenApiString("2024-01-01T00:00:00Z"),
+                                ["Payload"] = new Microsoft.OpenApi.Any.OpenApiObject
+                                {
+                                    ["title"] = new Microsoft.OpenApi.Any.OpenApiString("hello"),
+                                },
+                            },
+                        },
+                    },
+                },
+            },
+            ["401"] = new OpenApiResponse { Description = "Missing or invalid credentials." },
+            ["403"] = new OpenApiResponse { Description = "The caller is the reserved cms-webhook user, which is not authorized on this API." },
+        };
+    }
+
+    /// <summary>
+    /// Declares the shared response contract of the administrator-only enable/disable commands.
+    /// </summary>
+    /// <remarks>
+    /// Both handlers return <c>IResult</c> with 204/404, and the authorization layer adds 401/403; the
+    /// generated default 200 would lie about the contract, so it is replaced explicitly.
+    /// </remarks>
+    /// <param name="operation">The generated OpenAPI operation to correct; mutated in place.</param>
+    public static void ConfigureSetVisibilityOperation(OpenApiOperation operation)
+    {
+        operation.Responses = new OpenApiResponses
+        {
+            ["204"] = new OpenApiResponse { Description = "The visibility change was applied (idempotent)." },
+            ["401"] = new OpenApiResponse { Description = "Missing or invalid credentials." },
+            ["403"] = new OpenApiResponse { Description = "The caller is not the administrator." },
+            ["404"] = new OpenApiResponse { Description = "No entity with this id is known." },
+        };
     }
 
     /// <summary>

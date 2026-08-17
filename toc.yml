@@ -16,5 +16,7 @@
   href: docs/tooling.md
 - name: Deployment
   href: docs/deployment-aws.md
+- name: API contract
+  href: docs/api-contract.md
 - name: API Reference
   href: api/

@@ -63,6 +63,57 @@ public class UsersApiOpenApiTests
     }
 
     /// <summary>
+    /// Verifies the served contract is accurate: the listing declares its item schema and responses, the
+    /// enable/disable commands declare 204/401/403/404 (not a generated 200), and the Basic security
+    /// scheme is declared.
+    /// </summary>
+    /// <remarks>
+    /// Source business rule: spec "OpenAPI document" — the document stays in sync with the implemented
+    /// endpoints and declares the authentication scheme (change improve-api-documentation).
+    /// </remarks>
+    [Fact]
+    public async Task GetOpenApiDocument_DeclaresAccurateEntitiesContract()
+    {
+        using var factory = new UsersApiFactory();
+        using var client = factory.CreateClient();
+
+        var body = await client.GetStringAsync("/openapi/v1.json");
+        using var document = JsonDocument.Parse(body);
+        var root = document.RootElement;
+        var paths = root.GetProperty("paths");
+
+        var entities = paths.GetProperty("/entities").GetProperty("get");
+        var entitiesResponses = entities.GetProperty("responses");
+        entitiesResponses.TryGetProperty("200", out var ok).Should().BeTrue();
+        var items = ok.GetProperty("content").GetProperty("application/json").GetProperty("schema");
+        items.GetProperty("type").GetString().Should().Be("array");
+        var itemProperties = items.GetProperty("items").GetProperty("properties");
+        foreach (var field in new[] { "Id", "IsVisibleByAdmin", "LatestVersion", "UpdatedAt", "Payload" })
+        {
+            itemProperties.TryGetProperty(field, out _).Should().BeTrue();
+        }
+
+        entitiesResponses.TryGetProperty("401", out _).Should().BeTrue();
+        entitiesResponses.TryGetProperty("403", out _).Should().BeTrue();
+
+        foreach (var path in new[] { "/entities/{id}/disable", "/entities/{id}/enable" })
+        {
+            var responses = paths.GetProperty(path).GetProperty("post").GetProperty("responses");
+            responses.TryGetProperty("204", out _).Should().BeTrue();
+            responses.TryGetProperty("401", out _).Should().BeTrue();
+            responses.TryGetProperty("403", out _).Should().BeTrue();
+            responses.TryGetProperty("404", out _).Should().BeTrue();
+            responses.TryGetProperty("200", out _).Should().BeFalse();
+        }
+
+        var basic = root.GetProperty("components").GetProperty("securitySchemes").GetProperty("basic");
+        basic.GetProperty("type").GetString().Should().Be("http");
+        basic.GetProperty("scheme").GetString().Should().Be("basic");
+        paths.GetProperty("/entities").GetProperty("get").GetProperty("security")[0]
+            .TryGetProperty("basic", out _).Should().BeTrue();
+    }
+
+    /// <summary>
     /// Verifies the healthcheck is reachable anonymously and reports a healthy JSON body.
     /// </summary>
     /// <remarks>

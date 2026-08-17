@@ -53,6 +53,45 @@ builder.Services.AddOpenApi(options =>
             },
         };
 
+        // Every operation except the anonymous liveness probe requires HTTP Basic authentication; declare
+        // the scheme in components and attach it per operation so consumers (and the Scalar UI) see the
+        // auth contract instead of an empty components section.
+        document.Components ??= new OpenApiComponents();
+        var basicScheme = new OpenApiSecurityScheme
+        {
+            Type = SecuritySchemeType.Http,
+            Scheme = "basic",
+            Description = "HTTP Basic authentication against the shared credential store.",
+            Reference = new OpenApiReference { Type = ReferenceType.SecurityScheme, Id = "basic" },
+        };
+        document.Components.SecuritySchemes["basic"] = basicScheme;
+        foreach (var (path, pathItem) in document.Paths)
+        {
+            if (path == "/health")
+            {
+                continue;
+            }
+
+            foreach (var operation in pathItem.Operations.Values)
+            {
+                operation.Security = new List<OpenApiSecurityRequirement> { new() { [basicScheme] = [] } };
+            }
+        }
+
+        // The ingestion contract (request body oneOf, true status codes) lives on the endpoint's
+        // ConfigureOpenApiOperation helper: the handler parses HttpRequest.Body manually and returns
+        // IResult, so the generator cannot infer the request schema or the real status codes (change
+        // improve-api-documentation).
+        if (document.Paths.TryGetValue("/cms/events", out var eventsPath)
+            && eventsPath.Operations.TryGetValue(OperationType.Post, out var eventsOperation))
+        {
+            CmsEventEndpoints.ConfigureOpenApiOperation(eventsOperation);
+        }
+
+        // A relative server URL resolves against the origin the document is fetched from, so the contract
+        // never advertises a hardcoded http:// scheme for the TLS-only deployment.
+        document.Servers = new List<OpenApiServer> { new() { Url = "/" } };
+
         return Task.CompletedTask;
     });
 });

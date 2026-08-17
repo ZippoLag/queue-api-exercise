@@ -1,3 +1,4 @@
+using System.Linq;
 using System.Net;
 using System.Text;
 using System.Text.Json;
@@ -95,6 +96,58 @@ public class CmsWebhookApiOpenApiTests
 
         response.StatusCode.Should().Be(HttpStatusCode.OK);
         response.Content.Headers.ContentType!.MediaType.Should().Be("text/html");
+    }
+
+    /// <summary>
+    /// Verifies the served contract is accurate: the ingestion request body declares both accepted forms
+    /// (single object or batch array) with the event fields, the responses match the runtime status codes
+    /// (201/400/401, not a generated 200), and the Basic security scheme is declared.
+    /// </summary>
+    /// <remarks>
+    /// Source business rule: spec "OpenAPI document" — the document stays in sync with the implemented
+    /// endpoints and documents the ingestion request shape and authentication scheme (change
+    /// improve-api-documentation).
+    /// </remarks>
+    [Fact]
+    public async Task GetOpenApiDocument_DeclaresAccurateEventsContract()
+    {
+        using var factory = new CmsWebhookApiFactory();
+        using var client = factory.CreateClient();
+
+        var body = await client.GetStringAsync("/openapi/v1.json");
+        using var document = JsonDocument.Parse(body);
+        var root = document.RootElement;
+        var post = root.GetProperty("paths").GetProperty("/cms/events").GetProperty("post");
+
+        var requestBody = post.GetProperty("requestBody");
+        requestBody.GetProperty("required").GetBoolean().Should().BeTrue();
+        var schema = requestBody.GetProperty("content").GetProperty("application/json").GetProperty("schema");
+        var oneOf = schema.GetProperty("oneOf");
+        oneOf.GetArrayLength().Should().Be(2);
+        oneOf[0].GetProperty("type").GetString().Should().Be("object");
+        oneOf[1].GetProperty("type").GetString().Should().Be("array");
+        var properties = oneOf[0].GetProperty("properties");
+        foreach (var field in new[] { "type", "id", "payload", "version", "timestamp" })
+        {
+            properties.TryGetProperty(field, out _).Should().BeTrue();
+        }
+
+        var typeEnum = properties.GetProperty("type").GetProperty("enum")
+            .EnumerateArray().Select(item => item.GetString()).ToList();
+        typeEnum.Should().BeEquivalentTo(new[] { "publish", "update", "unPublish", "delete" });
+
+        var responses = post.GetProperty("responses");
+        responses.TryGetProperty("201", out _).Should().BeTrue();
+        responses.TryGetProperty("400", out _).Should().BeTrue();
+        responses.TryGetProperty("401", out _).Should().BeTrue();
+        responses.TryGetProperty("200", out _).Should().BeFalse();
+
+        var basic = root.GetProperty("components").GetProperty("securitySchemes").GetProperty("basic");
+        basic.GetProperty("type").GetString().Should().Be("http");
+        basic.GetProperty("scheme").GetString().Should().Be("basic");
+        post.GetProperty("security")[0].TryGetProperty("basic", out _).Should().BeTrue();
+        root.GetProperty("paths").GetProperty("/health").GetProperty("get")
+            .TryGetProperty("security", out _).Should().BeFalse();
     }
 
     /// <summary>

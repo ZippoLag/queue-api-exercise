@@ -1,6 +1,9 @@
 using System.Text.Json;
 using CmsWebhook.Application;
 using CmsWebhook.Domain;
+using Microsoft.AspNetCore.OpenApi;
+using Microsoft.OpenApi.Any;
+using Microsoft.OpenApi.Models;
 
 namespace CmsWebhook.Api.Endpoints;
 
@@ -27,6 +30,106 @@ public static class CmsEventEndpoints
             .WithTags("cms-events");
 
         return endpoints;
+    }
+
+    /// <summary>
+    /// Corrects the generated OpenAPI operation for <c>POST /cms/events</c>.
+    /// </summary>
+    /// <remarks>
+    /// The handler parses <c>HttpRequest.Body</c> manually, so the generator infers no request schema and
+    /// emits a default 200 response. Both accepted forms (a single object or a batch array) are declared as
+    /// a <c>oneOf</c> so the contract matches the verified runtime behavior, and the responses are replaced
+    /// with the actual status codes. Called from the <c>AddOpenApi</c> document transformer (change
+    /// improve-api-documentation): operation-level <c>WithOpenApi</c> callbacks were not applied by the
+    /// 9.0.18 generator, so the contract is set in the document transformer where it is guaranteed to run.
+    /// </remarks>
+    /// <param name="operation">The generated operation to correct; mutated in place.</param>
+    public static void ConfigureOpenApiOperation(OpenApiOperation operation)
+    {
+        // payload/version are required except for delete events — that type-dependent rule cannot be
+        // expressed in one schema, so it lives in the descriptions below.
+        var eventSchema = new OpenApiSchema
+        {
+            Type = "object",
+            Required = new HashSet<string> { "type", "id", "timestamp" },
+            Properties = new Dictionary<string, OpenApiSchema>
+            {
+                ["type"] = new OpenApiSchema
+                {
+                    Type = "string",
+                    Description = "The operation performed upon the entity: publish, update, unPublish or delete (case-sensitive).",
+                    Enum = new List<IOpenApiAny>
+                    {
+                        new OpenApiString("publish"),
+                        new OpenApiString("update"),
+                        new OpenApiString("unPublish"),
+                        new OpenApiString("delete"),
+                    },
+                },
+                ["id"] = new OpenApiSchema { Type = "string", Description = "The external entity's id." },
+                ["payload"] = new OpenApiSchema
+                {
+                    Type = "object",
+                    Nullable = true,
+                    Description = "The entity data as a JSON object; required for every type except delete.",
+                },
+                ["version"] = new OpenApiSchema
+                {
+                    Type = "integer",
+                    Format = "int32",
+                    Minimum = 1,
+                    Nullable = true,
+                    Description = "The entity's version from the external system (the first version is 1); required for every type except delete.",
+                },
+                ["timestamp"] = new OpenApiSchema
+                {
+                    Type = "string",
+                    Format = "date-time",
+                    Description = "ISO 8601 / RFC 3339 date-time of when the event happened in the external CMS.",
+                },
+            },
+        };
+
+        operation.RequestBody = new OpenApiRequestBody
+        {
+            Required = true,
+            Description = "A single CMS event object or a batch array of event objects.",
+            Content = new Dictionary<string, OpenApiMediaType>
+            {
+                ["application/json"] = new OpenApiMediaType
+                {
+                    Schema = new OpenApiSchema
+                    {
+                        OneOf =
+                        [
+                            eventSchema,
+                            new OpenApiSchema { Type = "array", Items = eventSchema },
+                        ],
+                    },
+                    Example = new OpenApiObject
+                    {
+                        ["type"] = new OpenApiString("publish"),
+                        ["id"] = new OpenApiString("entity-1"),
+                        ["payload"] = new OpenApiObject { ["title"] = new OpenApiString("hello") },
+                        ["version"] = new OpenApiInteger(1),
+                        ["timestamp"] = new OpenApiString("2024-01-01T00:00:00Z"),
+                    },
+                },
+            },
+        };
+
+        operation.Responses = new OpenApiResponses
+        {
+            ["201"] = new OpenApiResponse
+            {
+                Description = "The event(s) were validated and recorded in the outbox; a batch is all-or-nothing (an invalid element rejects the whole batch).",
+            },
+            ["400"] = new OpenApiResponse
+            {
+                Description = "The body is not valid JSON, is neither an object nor an array of objects, or fails validation (unknown type, missing/invalid id, version or timestamp).",
+            },
+            ["401"] = new OpenApiResponse { Description = "Missing or invalid credentials." },
+        };
     }
 
     /// <summary>
