@@ -63,14 +63,16 @@ public class UsersApiOpenApiTests
     }
 
     /// <summary>
-    /// Verifies the healthcheck is served anonymously.
+    /// Verifies the healthcheck is reachable anonymously and reports a healthy JSON body.
     /// </summary>
     /// <remarks>
-    /// Source business rule: spec "Users API authentication and roles", scenario
-    /// "Anonymous discovery endpoints"; task 6.1 (anonymous <c>/health</c>).
+    /// Mirrors the CmsWebhook contract (change add-healthcheck-and-openapi): <c>200 OK</c> with a JSON
+    /// body <c>{"status":"Healthy"}</c>, so a blank or malformed body is a regression. Source business
+    /// rule: spec "Users API authentication and roles", scenario "Anonymous discovery endpoints";
+    /// task 6.1 (anonymous <c>/health</c>).
     /// </remarks>
     [Fact]
-    public async Task GetHealth_WithoutAuthorization_ReturnsOk()
+    public async Task GetHealth_WithoutAuthorization_ReturnsHealthyJson()
     {
         using var factory = new UsersApiFactory();
         using var client = factory.CreateClient();
@@ -78,8 +80,9 @@ public class UsersApiOpenApiTests
         var response = await client.GetAsync("/health");
 
         response.StatusCode.Should().Be(HttpStatusCode.OK);
-        var body = await response.Content.ReadAsStringAsync();
-        body.Should().Contain("Healthy");
+        response.Content.Headers.ContentType!.MediaType.Should().Be("application/json");
+        using var document = JsonDocument.Parse(await response.Content.ReadAsStringAsync());
+        document.RootElement.GetProperty("status").GetString().Should().Be("Healthy");
     }
 
     /// <summary>
