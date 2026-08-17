@@ -1,6 +1,6 @@
 # AWS Deployment Specification
 
-> Source files: infra/aws/ (main.tf, variables.tf, backend.tf, modules/network, modules/iam, modules/compute, modules/tls), scripts/bootstrap-aws.sh, scripts/deploy-aws.sh, scripts/teardown-aws.sh, .github/workflows/ci.yml
+> Source files: infra/aws/backend.tf, infra/aws/main.tf, infra/aws/variables.tf, infra/aws/outputs.tf, infra/aws/versions.tf, infra/aws/modules/network/main.tf, infra/aws/modules/network/variables.tf, infra/aws/modules/network/outputs.tf, infra/aws/modules/iam/main.tf, infra/aws/modules/iam/variables.tf, infra/aws/modules/iam/outputs.tf, infra/aws/modules/compute/main.tf, infra/aws/modules/compute/variables.tf, infra/aws/modules/compute/outputs.tf, infra/aws/modules/compute/templates/user-data.sh.tftpl, infra/aws/modules/compute/templates/cms-api.service.tftpl, infra/aws/modules/compute/templates/users-api.service.tftpl, infra/aws/modules/secrets/main.tf, infra/aws/modules/secrets/variables.tf, infra/aws/modules/secrets/outputs.tf, infra/aws/modules/tls/main.tf, infra/aws/modules/tls/variables.tf, infra/aws/modules/tls/outputs.tf, infra/aws/modules/tls/templates/Caddyfile.tftpl, scripts/bootstrap-aws.sh, scripts/deploy-aws.sh, scripts/teardown-aws.sh, .github/workflows/ci.yml
 
 ## Purpose
 
