@@ -28,5 +28,5 @@
 ## 5. Verification
 
 - [x] 5.1 Run `dotnet build` + `dotnet test` (coverage ratchet stays at 100.0%)
-- [ ] 5.2 Inspect the locally served `/openapi/v1.json` for both APIs and confirm the corrected contract; verify on the live demo environment after a CI deploy
+- [x] 5.2 Inspect the locally served `/openapi/v1.json` for both APIs and confirm the corrected contract; verify on the live demo environment after a CI deploy
 - [x] 5.3 Run `openspec validate --all` and the DocFX build (new page renders in the site nav, no broken links)
