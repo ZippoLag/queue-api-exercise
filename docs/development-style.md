@@ -44,7 +44,7 @@ bash scripts/repair-openlore-grammar.sh && openlore analyze --force
 
 # 7. Optional but recommended before each commit (no API key)
 openlore drift     # detect spec/code drift
-# NOTE: `openlore drift --install-hook` wrongly detects skill files as drift, run `openlore drift` manually before commit! See https://github.com/clay-good/OpenLore/issues/350
+openlore drift --install-hook # Enforcing drift check before every commit, use `openlore drift --uninstall-hook` if it becomes starts misbehaving
 ```
 
 ## Quality gates (CI)

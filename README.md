@@ -238,6 +238,10 @@ publishes the artifacts to S3 and deploys/verifies itself.
   `aws ssm put-parameter --name /queue-api/<env>/cms-password --type SecureString --value "$(openssl rand -hex 16)" --overwrite --region eu-west-3`, then on the node
   `rm /var/lib/queue-api/queue-auth.db` (repeat the `put-parameter` for each password you rotate),
   then re-run `scripts/deploy-aws.sh`.
+- **Caddy config changes** — edit `/etc/caddy/Caddyfile` on the node and apply with
+  `systemctl restart caddy` (TLS blips for a second; the API services are separate units and keep
+  running). A `reload` will **not** work: the Caddyfile sets `admin off`, which disables the admin
+  API that `caddy reload` uses to push the new config.
 - **EBS snapshots** — the stores are throwaway by design, but a manual snapshot cadence is
   documented best-practice: `aws ec2 create-snapshot --volume-id <store-volume> --region eu-west-3`.
 - **Stop/start for cost savings** — `Stop instance` (not terminate) keeps the EBS stores; the
