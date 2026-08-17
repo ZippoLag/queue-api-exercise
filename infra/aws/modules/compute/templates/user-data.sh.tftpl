@@ -12,6 +12,11 @@ ENV_NAME="${env_name}"
 log() { echo "[queue-api user-data] $*"; }
 
 # --- 1. .NET 9 ASP.NET Core runtime -------------------------------------------
+# libicu is required by the .NET runtime for globalization; without it every app exits
+# with "Couldn't find a valid ICU package" (idempotent; also run when dotnet is already
+# present so a boot-time retry converges).
+log "installing libicu"
+dnf install -y libicu
 if ! command -v dotnet >/dev/null 2>&1; then
   log "installing .NET 9 ASP.NET Core runtime"
   curl -fsSL https://dot.net/v1/dotnet-install.sh -o /tmp/dotnet-install.sh
