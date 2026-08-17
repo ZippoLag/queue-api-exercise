@@ -17,6 +17,28 @@ You are a professional software developer working in a **.NET 9** codebase for a
 - XML documentation files are enabled (with `GenerateDocumentationFile` set to `true` in all `.csproj` files), look for `*/bin/*.xml` in each built project when you need to analize the implementation state quickly. Run `dotnet build` if they are not present.
 - Update the `README.md` and all linked documents whenever specs change, are synced or archived.
 
+## Documentation
+`README.md` and `docs/**` are the canonical human documentation (the DocFX site is a generated view — never a separate copy). Keep them up to date whenever behavior, configuration, or tooling changes, and update `toc.yml` and the README docs index when pages are added, moved, or removed.
+
+- **One fact, one home**: never replicate prose across files. Each fact lives in exactly one file; other files link to it (relative markdown links). Command blocks may embed the values they execute (ports, passwords, paths) — that is not replication.
+- **Per-topic template**: every topic section separates general concept → in-this-project specifics → why (reasoning) → diagram → sample/commands → see-also links.
+- **Domains don't cross files**: each file owns its conceptual domain (table below); higher-level files condense and link down to lower-level runbooks instead of restating them.
+- **Naming**: context-appropriate spellings are intentional — `cms-webhook` is the reserved username (never renamed), `CmsWebhook` is the C# naming, `CMS Webhook` is the prose title. `docs/dsl_glossary.md` is the single place that reconciles them as synonyms.
+- **Voice**: neutral third person; reasoning is written as an explicit "why" next to the fact it justifies.
+- **Archived invariant**: never modify `docs/archived/initial_requirements.md`.
+
+| File | Owns |
+|---|---|
+| `README.md` | identity, quickstart, pointer hub, docs index |
+| `docs/architecture.md` | system overview, design decisions, behavior |
+| `docs/configuration.md` | configuration chain, secrets, DB paths, TLS |
+| `docs/development-style.md` | development approach and conventions |
+| `docs/dsl_glossary.md` | terminology + naming synonyms |
+| `docs/debugging.md` | debugging surfaces runbook |
+| `docs/testing.md` | testing, coverage ratchet, CI gates |
+| `docs/tooling.md` | tooling setup |
+| `docs/deployment-aws.md` | AWS deployment runbook |
+
 ## Code Standards
 ### Testing coverage
 - Unit Testing coverage must include all corner cases

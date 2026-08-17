@@ -139,8 +139,8 @@ balancer, ~$1–9/mo. The full footprint is infrastructure-as-code under [`infra
 
 ### One paste, from the AWS console
 
-Open **AWS CloudShell** (the console's built-in terminal) and paste [`scripts/bootstrap-aws.sh`](scripts/bootstrap-aws.sh):
-it clones this repository, installs Terraform, generates fresh passwords, creates the whole
+Open **AWS CloudShell** (the console's built-in terminal), use "Upload File" from "Actions" and upload [`scripts/bootstrap-aws.sh`](scripts/bootstrap-aws.sh), then run `bash bootstrap-aws.sh`:
+this clones this repository, installs Terraform, generates fresh passwords, creates the whole
 environment, and performs the first deploy. **Change the `REGION` variable first — it defaults to
 `eu-west-3` (Paris).** Re-running is safe (passwords are reused, terraform is idempotent).
 

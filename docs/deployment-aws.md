@@ -1,0 +1,171 @@
+# AWS Deployment
+
+The AWS deployment is the production footprint of the two APIs: both run as plain .NET publishes on a single EC2 node behind Caddy, provisioned entirely as infrastructure-as-code with Terraform. This document is the runbook — how to create, deploy to, operate, and tear down the environment.
+
+For local development and debugging, see the README [Quickstart](../README.md#quickstart) and [Debugging](debugging.md). For the environment-variable matrix that also applies here, see [Configuration](configuration.md).
+
+## Overview
+
+**General concept — what "deploy to AWS" means here.** The APIs are ordinary ASP.NET Core processes. Deploying them to AWS means: put the built binaries on a server, run them as services, put a TLS-terminating proxy in front, and store the SQLite databases somewhere durable. No containers, no orchestrator, no load balancer.
+
+**In this project** the whole footprint lives under [`infra/aws/`](../infra/aws/) as Terraform, and a copy-pastable script ([`scripts/bootstrap-aws.sh`](../scripts/bootstrap-aws.sh)) creates it from the AWS console.
+
+**Why this shape.**
+
+- **One node.** Both APIs share the same SQLite store, and SQLite is a single-writer file — they must run on one host. Scaling out is explicitly out of scope until the store moves off SQLite.
+- **No load balancer.** TLS terminates on the instance via Caddy, so the ~$16/mo ALB the APIs don't need is gone.
+- **No containers.** The APIs are plain `dotnet publish` outputs run as systemd services — the simplest thing that works, and the easiest to reason about on a single node.
+
+**Topology**
+
+```
+        client (https://cms.<domain> / users.<domain>   or   https://<public-ip>[:8443])
+                                  │
+                     ┌────────────▼────────────┐
+                     │  Caddy on the instance  │   TLS termination: Let's Encrypt (with a domain)
+                     │  HTTP→HTTPS redirect    │   or self-signed `tls internal` (domainless)
+                     └────────────┬────────────┘
+                      ┌───────────┴───────────┐
+                      ▼                       ▼
+                 localhost:8080           localhost:8081
+                 CmsWebhook.Api           Users.Api
+                      └───────────┬───────────┘
+                                  ▼
+                   SQLite stores on EBS (/var/lib/queue-api)
+```
+
+**Component notes**
+
+- **One `t4g.small` node** hosts both APIs as systemd services.
+- **TLS terminates on the instance** (Caddy): Let's Encrypt certificates when a domain is configured, or a self-signed internal certificate over the public IP when not. Plain HTTP redirects to HTTPS.
+- **Secrets live in SSM Parameter Store** (`SecureString`): fresh passwords are generated at environment creation — the committed local-development defaults are never used.
+- **No SSH port**: deploys travel via SSM Run Command; the security group exposes 80/443 (plus 8443 in the domainless variant, which serves the Users API over the public IP).
+- **CI deploys `main`**: a green push publishes both APIs to the S3 artifact bucket and ships them to the node (see [GitHub CI deploy](#github-ci-deploy)).
+
+## Cost
+
+The footprint is deliberately minimal, so the running cost is a few dollars a month.
+
+| Resource | ~$/mo | Notes |
+|---|---|---|
+| EC2 `t4g.small` (2 vCPU / 2 GiB) | **$0** | free trial (750 h/mo) through 2026-12-31 |
+| EC2 `t4g.micro` (1 GiB) — after the trial | ~$7.50 | documented downgrade (see [Post-trial downgrade](#post-trial-downgrade)) |
+| EBS 8 GB gp3 (stores) | ~$0.65 | survives redeploys and stop/start |
+| Elastic IP (attached) | $0 | |
+| Caddy + Let's Encrypt | $0 | replaces the ALB |
+| SSM Parameter Store (standard tier) | $0 | |
+| S3 artifact bucket | ~$0 | tiny traffic |
+| Route 53 hosted zone | $0.50 | only when `DOMAIN` is set |
+| **Total today** | **~$1.20** | ~$0.65 without a domain |
+| **Total after the trial** | **~$8.70** | after the `t4g.micro` downgrade |
+
+## First-time setup: bootstrap
+
+**General concept — what "bootstrap" means.** Creating a whole environment by hand (VPC, security group, instance, EBS, SSM parameters, S3 bucket, OIDC role, first deploy) is error-prone. "Bootstrapping" means one script does all of it, idempotently, so you can re-run it safely.
+
+**Instructions.** Open **AWS CloudShell** (the console's built-in terminal) and paste [`scripts/bootstrap-aws.sh`](../scripts/bootstrap-aws.sh). The script:
+
+1. clones this repository,
+2. installs Terraform,
+3. generates fresh passwords,
+4. creates the whole environment,
+5. performs the first deploy.
+
+**Change the `REGION` variable first — it defaults to `eu-west-3` (Paris).**
+
+```bash
+# in AWS CloudShell — edit REGION/ENV_NAME/DOMAIN at the top of the script first
+bash <(curl -fsSL https://raw.githubusercontent.com/ZippoLag/queue-api-exercise/main/scripts/bootstrap-aws.sh)
+```
+
+Re-running is safe: passwords are reused and Terraform is idempotent.
+
+**Why it works this way.**
+
+- **No access keys.** CloudShell runs as your logged-in console identity, so there is nothing to copy or rotate.
+- **Ephemeral tooling.** Terraform and its provider plugins (the ~600 MB AWS provider) are installed under `/tmp`, so they don't consume CloudShell's 1 GB persistent `$HOME` — only the small clone and its Terraform state live there.
+- **First deploy is local.** On a fresh account the artifact bucket is empty, so the script installs the .NET SDK and builds locally for the first deploy. Pass `--infra-only` to skip that and let the CI deploy job publish and ship the artifacts instead: set the secrets from the printed report, then push to `main`.
+
+## Deploying
+
+**Automatically.** A push to `main` that passes the `build-and-test` and `end-to-end` gates deploys and verifies itself (`.github/workflows/ci.yml` → `deploy` job; requires the GitHub secrets below).
+
+**Manually** (reuses the same path):
+
+```bash
+REGION=eu-west-3 ENV_NAME=demo \
+S3_BUCKET=<from terraform output> INSTANCE_ID=<from terraform output> \
+DOMAIN="" bash scripts/deploy-aws.sh
+```
+
+**Rollback.** `scripts/deploy-aws.sh --rollback` restores the previous artifacts kept on the node as `*.previous` (or re-run the deploy job with a prior S3 object version).
+
+**Tear down.** `scripts/teardown-aws.sh` destroys the whole Terraform-managed footprint. Run it from CloudShell against the same clone that holds the local state (it disables the node's termination protection first); pass `--all` to also delete the local clone and the Terraform install.
+
+## GitHub CI deploy
+
+**General concept — OIDC instead of keys.** Storing long-lived AWS access keys in GitHub is a security liability. With OIDC, GitHub proves to AWS that a workflow run belongs to your repository, and AWS hands out short-lived credentials for exactly that run — no keys are ever stored.
+
+**In this project** the `deploy` job authenticates to AWS with the **OIDC role Terraform creates** for `GITHUB_ORG`, scoped to the single `GITHUB_REPO` (`queue-api-deploy-<env>`). It publishes both APIs and the `AuthDbInit` tool to the S3 artifact bucket, ships them to the node via SSM Run Command, and verifies the live deployment.
+
+**GitHub secrets and vars.** Set these after the first bootstrap run, reading the values from the bootstrap report / `terraform output` (Settings → Secrets and variables → Actions):
+
+| Name | Kind | Value |
+|------|------|-------|
+| `AWS_ACCOUNT_ID` | Secret | your AWS account id: `aws sts get-caller-identity --query Account --output text` |
+| `AWS_S3_BUCKET` | Secret | artifact bucket: `terraform output -raw artifact_bucket` |
+| `AWS_INSTANCE_ID` | Secret | node instance id: `terraform output -raw instance_id` |
+| `AWS_ENV_NAME` | Variable | optional — defaults to `demo` (must match what bootstrap used) |
+| `AWS_REGION` | Variable | optional — defaults to `eu-west-3` (must match what bootstrap used) |
+| `AWS_DOMAIN` | Variable | optional — defaults to empty (self-signed URLs on the Elastic IP) |
+
+**Expected failure before setup.** Until the environment exists and the secrets are set, a push to `main` will fail the `deploy` job (and the OIDC role does not exist yet either) — that is expected. Once the bootstrap has run and the secrets are in place, re-run the failed job from the Actions tab (or push again) and CI publishes the artifacts to S3 and deploys/verifies itself.
+
+## Manual operations
+
+Each operation below is a documented, repeatable procedure. The stores are throwaway by design — treat them as such, and know that the APIs fail fast at startup if the credential store is missing (see [Architecture](architecture.md)).
+
+### Password rotation
+
+**Why it's not just "re-run init".** The seed tool is a **no-op over an existing store** (existing users are left unchanged), and the node has the runtime only — no SDK, so the local `scripts/init-db.sh` does not apply there. Rotating therefore needs a fresh store: update the SSM parameter, delete the store on the node, then re-deploy — the published `AuthDbInit` re-seeds it from the new value and restarts the services.
+
+```bash
+# 1. rotate each password in SSM (repeat for each password you rotate)
+aws ssm put-parameter --name /queue-api/<env>/cms-password --type SecureString \
+  --value "$(openssl rand -hex 16)" --overwrite --region eu-west-3
+
+# 2. on the node, delete the credential store so it re-seeds from the new value
+rm /var/lib/queue-api/queue-auth.db
+
+# 3. re-deploy (the AuthDbInit tool re-seeds and restarts the services)
+bash scripts/deploy-aws.sh
+```
+
+### Caddy config changes
+
+Edit `/etc/caddy/Caddyfile` on the node and apply with `systemctl restart caddy` (TLS blips for a second; the API services are separate units and keep running).
+
+A `reload` will **not** work: the Caddyfile sets `admin off`, which disables the admin API that `caddy reload` uses to push the new config.
+
+### EBS snapshots
+
+The stores are throwaway by design, but a manual snapshot cadence is documented best-practice:
+
+```bash
+aws ec2 create-snapshot --volume-id <store-volume> --region eu-west-3
+```
+
+### Stop/start for cost savings
+
+`Stop instance` (not terminate) keeps the EBS stores; the Elastic IP stays attached and the services come back automatically (they are enabled at first deploy). Note the EIP is billed (~$0.005/hr) while the instance is stopped, so this only saves the instance-hours — meaningful once the `t4g.small` free trial ends. Terminate-protection is on.
+
+### Post-trial downgrade
+
+After 2026-12-31, stop the instance, change the type to `t4g.micro` (console: Instance settings → Change instance type), start it. The measured footprint (~285 MB peak for both APIs) fits 1 GiB with ~55% headroom; if you want a hard cap on the two processes, add `DOTNET_gcServer=0` and `DOTNET_GCHeapHardLimit` to the systemd `EnvironmentFile`s.
+
+## See also
+
+- [Configuration](configuration.md) — the full environment-variable matrix (also usable without AWS), TLS, and how SSM values are rendered into the API processes' environment at boot.
+- [Architecture](architecture.md) — why the system is shaped this way (single node, outbox, shared stores).
+- README [Quickstart](../README.md#quickstart) — local development without AWS.
+- [`infra/aws/`](../infra/aws/) — the Terraform source of truth for this footprint.
