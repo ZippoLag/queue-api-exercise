@@ -102,6 +102,8 @@ Same as host debugging, from the devcontainer console (ports `5264`/`5265` are f
 browser). The devcontainer has no Docker daemon, so it is for this surface only — not the containers
 below.
 
+> Note: if you are using the devcontainer, you will not be able tu successfully run the project in your host OS or using `docker compose` if you happen to try.
+
 ### 3. Containers — full stack parity, hot reload
 
 ```bash
@@ -126,6 +128,8 @@ profiles work from any VS Code instance with the .NET SDK — including inside t
 **The trap when mixing modes:**
 
 - **Port collision** — the stack and host launches both bind `5264`/`5265`; stop one before starting the other.
+
+> **DevContainer port collision**: note that the devcontainer is configured to always forward the ports, so if you have the devcontainer open you will not be able to succesfully run these projects outside of it in your host OS, whether you're using `docker compose...` or `dotnet run...`.
 
 ## Deployment
 
