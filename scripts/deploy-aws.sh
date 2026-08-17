@@ -55,13 +55,29 @@ log()   { echo "[Information] $*"; }
 fail()  { echo "[Error] $*" >&2; exit 1; }
 
 # --- publish + upload -----------------------------------------------------------
+# The node runs the .NET runtime installed by user-data (framework-dependent), but the
+# apphost launcher binaries must match the node's CPU architecture — publishing without
+# a RID produces x64 apphosts that an ARM64 (Graviton) node cannot execute.
+publish_rid() {
+  local arch
+  arch="$(aws ec2 describe-instances --instance-ids "$INSTANCE_ID" --region "$REGION" \
+    --query 'Reservations[0].Instances[0].Architecture' --output text)" || fail "Could not resolve the instance architecture."
+  case "$arch" in
+    arm64)   echo "linux-arm64" ;;
+    x86_64)  echo "linux-x64" ;;
+    *)       fail "Unsupported instance architecture: $arch" ;;
+  esac
+}
+
 publish_and_upload() {
-  log "Publishing the CMS Webhook API, Users API and AuthDbInit (Release)"
-  dotnet publish "$REPO_ROOT/src/CmsWebhook/CmsWebhook.Api/CmsWebhook.Api.csproj" -c Release -o "$PUBLISH_DIR/cms" --nologo -v:q \
+  local rid
+  rid="$(publish_rid)"
+  log "Publishing the CMS Webhook API, Users API and AuthDbInit (Release, $rid)"
+  dotnet publish "$REPO_ROOT/src/CmsWebhook/CmsWebhook.Api/CmsWebhook.Api.csproj" -c Release -r "$rid" -o "$PUBLISH_DIR/cms" --nologo -v:q \
     || fail "dotnet publish of CmsWebhook.Api failed."
-  dotnet publish "$REPO_ROOT/src/Users/Users.Api/Users.Api.csproj" -c Release -o "$PUBLISH_DIR/users" --nologo -v:q \
+  dotnet publish "$REPO_ROOT/src/Users/Users.Api/Users.Api.csproj" -c Release -r "$rid" -o "$PUBLISH_DIR/users" --nologo -v:q \
     || fail "dotnet publish of Users.Api failed."
-  dotnet publish "$REPO_ROOT/tools/AuthDbInit/AuthDbInit.csproj" -c Release -o "$PUBLISH_DIR/auth-db-init" --nologo -v:q \
+  dotnet publish "$REPO_ROOT/tools/AuthDbInit/AuthDbInit.csproj" -c Release -r "$rid" -o "$PUBLISH_DIR/auth-db-init" --nologo -v:q \
     || fail "dotnet publish of AuthDbInit failed."
 
   log "Uploading artifacts to $S3_PREFIX"
