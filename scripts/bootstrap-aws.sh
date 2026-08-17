@@ -17,7 +17,7 @@
 #
 # ── 1. EDIT HERE ────────────────────────────────────────────────────────────────
 REGION="eu-west-3"            # AWS region — change freely before running (Paris default)
-ENV_NAME="queue-api-exercise"               # environment/stack name (repeat with a new name for more environments)
+ENV_NAME="demo"               # environment/stack name (repeat with a new name for more environments)
 DOMAIN=""                     # public domain (e.g. "example.com") + ROUTE53_ZONE_ID for real certs; empty = self-signed on the Elastic IP
 ROUTE53_ZONE_ID=""            # hosted zone id, only used when DOMAIN is set
 INSTANCE_TYPE="t4g.small"     # free trial through 2026-12-31; downgrade to t4g.micro after
