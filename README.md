@@ -213,8 +213,9 @@ bash <(curl -fsSL https://raw.githubusercontent.com/ZippoLag/queue-api-exercise/
 
 ### CI deploy — GitHub secrets and vars
 
-The `deploy` job authenticates to AWS with the **OIDC role Terraform creates** for `GITHUB_ORG`
-(`queue-api-deploy-<env>`), so no access keys are ever stored in GitHub. It still needs three
+The `deploy` job authenticates to AWS with the **OIDC role Terraform creates** for `GITHUB_ORG`,
+scoped to the single `GITHUB_REPO` (`queue-api-deploy-<env>`), so no access keys are ever stored
+in GitHub. It still needs three
 **repository secrets** (Settings → Secrets and variables → Actions) — set them after the first
 bootstrap run, reading the values from the bootstrap report / `terraform output`:
 

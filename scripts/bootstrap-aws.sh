@@ -23,6 +23,7 @@ ROUTE53_ZONE_ID=""            # hosted zone id, only used when DOMAIN is set
 INSTANCE_TYPE="t4g.small"     # free trial through 2026-12-31; downgrade to t4g.micro after
 BUCKET_SUFFIX=""              # optional suffix for the artifact bucket (globally unique names)
 GITHUB_ORG="ZippoLag"         # for the CI deploy OIDC role (leave empty to skip)
+GITHUB_REPO="queue-api-exercise" # scope the OIDC role to this single repo (empty = whole org)
 REPO_URL="https://github.com/ZippoLag/queue-api-exercise.git"
 BRANCH="main"
 WORK_DIR="$HOME/queue-api-aws" # where the repo is cloned and terraform runs
@@ -121,6 +122,7 @@ route53_zone_id     = "$ROUTE53_ZONE_ID"
 instance_type       = "$INSTANCE_TYPE"
 bucket_suffix       = "$BUCKET_SUFFIX"
 github_org          = "$GITHUB_ORG"
+github_repo         = "$GITHUB_REPO"
 cms_password        = "$CMS_PW"
 admin_password      = "$ADMIN_PW"
 regular_password    = "$REGULAR_PW"
