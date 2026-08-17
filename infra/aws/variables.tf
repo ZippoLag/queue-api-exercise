@@ -84,6 +84,18 @@ variable "github_repo" {
   default     = ""
 }
 
+variable "github_org_id" {
+  description = "Numeric ID of the GitHub organization/username, required to match the 2025 OIDC subject-claim format (repo:owner@<id>/...). Get it from the GitHub repo API (owner.id); the bootstrap script prints the value to use."
+  type        = number
+  default     = 0
+}
+
+variable "github_repo_id" {
+  description = "Numeric ID of the GitHub repository, required to match the 2025 OIDC subject-claim format (repo:owner/repo@<id>:...). Get it from the GitHub repo API (id)."
+  type        = number
+  default     = 0
+}
+
 variable "bucket_suffix" {
   description = "Optional suffix appended to the artifact bucket name (bucket names are globally unique)."
   type        = string

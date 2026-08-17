@@ -105,10 +105,20 @@ data "aws_iam_policy_document" "github_assume" {
       variable = "token.actions.githubusercontent.com:aud"
       values   = ["sts.amazonaws.com"]
     }
+    # GitHub changed the OIDC subject claim in 2025 to include the numeric owner and
+    # repo IDs (repo:owner@<id>/repo@<id>:...). The ID-qualified pattern matches that
+    # format; the legacy pattern is kept so pre-change tokens still work. Both are
+    # exact matches on org/repo, so the pair is not more permissive than before.
     condition {
       test     = "StringLike"
       variable = "token.actions.githubusercontent.com:sub"
-      values   = [var.github_repo != "" ? "repo:${var.github_org}/${var.github_repo}:*" : "repo:${var.github_org}:*"]
+      values = var.github_repo != "" ? [
+        "repo:${var.github_org}@${var.github_org_id}/${var.github_repo}@${var.github_repo_id}:*",
+        "repo:${var.github_org}/${var.github_repo}:*",
+        ] : [
+        "repo:${var.github_org}@${var.github_org_id}:*",
+        "repo:${var.github_org}:*",
+      ]
     }
   }
 }

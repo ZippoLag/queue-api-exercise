@@ -15,6 +15,18 @@ variable "github_repo" {
   default     = ""
 }
 
+variable "github_org_id" {
+  description = "Numeric ID of the GitHub organization/username. Since the 2025 OIDC subject-claim change, GitHub includes the owner ID in the sub claim (repo:owner@<owner-id>/repo@<repo-id>:...); the trust policy must match it. Find it via the repo API (owner.id)."
+  type        = number
+  default     = 0
+}
+
+variable "github_repo_id" {
+  description = "Numeric ID of the GitHub repository, part of the 2025 OIDC subject-claim format. Find it via the repo API (id)."
+  type        = number
+  default     = 0
+}
+
 variable "bucket_suffix" {
   description = "Optional suffix for the artifact bucket name (bucket names are globally unique)."
   type        = string

@@ -16,8 +16,10 @@ instance_arch = "arm64"
 # route53_zone_id  = "Z1234567890EXAMPLE"
 
 # CI deploy OIDC role (skip or leave empty if you only deploy from the console script).
-# github_org  = "your-github-org-or-username"
-# github_repo = "queue-api-exercise" # optional: scope to one repo
+# github_org    = "your-github-org-or-username"
+# github_repo   = "queue-api-exercise" # optional: scope to one repo
+# github_org_id = 755062               # from the GitHub repo API (owner.id) — required since the 2025 OIDC sub-claim change
+# github_repo_id = 1330773597          # from the GitHub repo API (id)
 
 # Passwords are normally generated fresh by scripts/bootstrap-aws.sh; provide them here
 # only for a fully deterministic replay.

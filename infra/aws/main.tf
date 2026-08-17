@@ -69,9 +69,11 @@ module "secrets" {
 # the artifact bucket), the GitHub OIDC deploy role, and the versioned S3 artifact
 # bucket that both the CI deploy job and the console bootstrap script use.
 module "iam" {
-  source        = "./modules/iam"
-  env_name      = var.env_name
-  github_org    = var.github_org
-  github_repo   = var.github_repo
-  bucket_suffix = var.bucket_suffix
+  source         = "./modules/iam"
+  env_name       = var.env_name
+  github_org     = var.github_org
+  github_repo    = var.github_repo
+  github_org_id  = var.github_org_id
+  github_repo_id = var.github_repo_id
+  bucket_suffix  = var.bucket_suffix
 }

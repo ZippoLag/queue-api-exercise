@@ -26,6 +26,11 @@ INSTANCE_TYPE="t4g.small"     # free trial through 2026-12-31; downgrade to t4g.
 BUCKET_SUFFIX=""              # optional suffix for the artifact bucket (globally unique names)
 GITHUB_ORG="ZippoLag"         # for the CI deploy OIDC role (leave empty to skip)
 GITHUB_REPO="queue-api-exercise" # scope the OIDC role to this single repo (empty = whole org)
+# GitHub's OIDC sub claim includes the numeric owner/repo IDs since 2025
+# (repo:owner@<id>/repo@<id>:...); the trust policy must match them.
+# Get them from: gh api repos/<org>/<repo> --jq '{owner: .owner.id, repo: .id}'
+GITHUB_ORG_ID=755062
+GITHUB_REPO_ID=1330773597
 REPO_URL="https://github.com/ZippoLag/queue-api-exercise.git"
 BRANCH="main"
 WORK_DIR="$HOME/queue-api-aws" # where the repo is cloned and terraform runs
@@ -135,6 +140,8 @@ instance_type       = "$INSTANCE_TYPE"
 bucket_suffix       = "$BUCKET_SUFFIX"
 github_org          = "$GITHUB_ORG"
 github_repo         = "$GITHUB_REPO"
+github_org_id       = $GITHUB_ORG_ID
+github_repo_id      = $GITHUB_REPO_ID
 cms_password        = "$CMS_PW"
 admin_password      = "$ADMIN_PW"
 regular_password    = "$REGULAR_PW"
