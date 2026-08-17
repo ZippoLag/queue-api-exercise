@@ -39,6 +39,25 @@ You are a professional software developer working in a **.NET 9** codebase for a
 | `docs/tooling.md` | tooling setup |
 | `docs/deployment-aws.md` | AWS deployment runbook |
 
+## AWS Guidance
+
+Any agent working with AWS in this project follows the guidance below, plus the project's own AWS knowledge: the runbook in [docs/deployment-aws.md](docs/deployment-aws.md) and the infrastructure-as-code under [infra/aws/](infra/aws/).
+
+- The AWS MCP Server is wired in `.agents/mcp.json` (SigV4 via `aws login` credentials; see [docs/tooling.md](docs/tooling.md)); prefer its tools, and use `retrieve_skill` for any AWS skill instead of guessing. The `creating-secrets-using-best-practices` skill is pre-installed in `.agents/skills/`.
+
+- Prefer the AWS MCP Server for AWS interactions — it provides sandboxed execution, observability, and audit logging. If unavailable, use the AWS CLI directly.
+- Before starting a task, check whether a relevant AWS skill is available. Load the skill with `retrieve_skill` and prefer its guidance over general knowledge.
+- When uncertain about specific AWS details (API parameters, permissions, limits, error codes), verify against documentation rather than guessing. State uncertainty explicitly if you cannot confirm.
+- When creating infrastructure, prefer infrastructure-as-code (AWS CDK or CloudFormation) over direct CLI commands.
+- When working with infrastructure, follow AWS Well-Architected Framework principles.
+- Do not use em dashes in AWS resource names or descriptions. Use hyphens instead.
+
+### Secret Safety
+
+- MUST load the `aws-secrets-manager` skill first for any secret, credential, API key, token, or password task. MUST NOT call `secretsmanager get-secret-value` or `batch-get-secret-value`, and MUST NOT hit the Secrets Manager Agent daemon directly. MUST use `{{resolve:secretsmanager:secret-id:SecretString:json-key}}` with `asm-exec` so the secret resolves at runtime without entering context.
+
+> Note: in this repository AWS secrets live in **SSM Parameter Store** (`SecureString`), not Secrets Manager — see the password-rotation and secret-handling runbook in [docs/deployment-aws.md](docs/deployment-aws.md).
+
 ## Code Standards
 ### Testing coverage
 - Unit Testing coverage must include all corner cases

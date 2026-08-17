@@ -6,54 +6,41 @@
 
 ## Installing the tools
 
-The tools install into the devcontainer's terminal via [pnpm](https://pnpm.io/):
+The whole toolchain installs with one idempotent, user-local command — [`scripts/install-ai-sdlc.sh`](../scripts/install-ai-sdlc.sh) (its executable steps; keep them in sync):
 
 ```bash
-# 1. pnpm (safer alternative to npm)
-wget -qO- https://get.pnpm.io/install.sh | ENV="$HOME/.bashrc" SHELL="$(which bash)" bash -
-source ~/.bashrc
-pnpm runtime set node lts -g
-
-# 2. Global tools
-pnpm install -g freebuff              # coding assistant
-pnpm install -g @fission-ai/openspec@latest  # OpenSpec CLI (spec-driven development)
-pnpm install -g openlore              # OpenLore (static analysis + drift tracking; no API key needed)
-
-# 3. OpenSpec baseline (only when starting a brand-new project; this repo already has openspec/)
-[ -d openspec/ ] && openspec update || openspec init
-
-# 4. OpenLore: .openlore/config.json is committed, so just build the index
-openlore init      # only needed if .openlore/config.json is missing (e.g. fresh clone without the committed config)
-openlore analyze   # builds the call-graph index (no API key; C# is fully supported by openlore >= 2.1.9)
-
-# 5. Health checks
-openlore doctor    # every line should be ✓ except the optional "LLM connection" warning (only used by `openlore generate`)
-openspec validate --all   # specs must all pass
-# openlore verify   # optional: spec/code drift + generation report — REQUIRES an LLM API key (ANTHROPIC_API_KEY/OPENAI_API_KEY/...)
-
-# 6. ARM64 (Apple Silicon) devcontainers only — repair the C#/Bash grammars
-# tree-sitter-c-sharp@0.21.3 ships no linux-arm64 prebuilt binary, so C# files
-# would be indexed for search but never graphed. Build the native binding from
-# source (one-time; idempotent):
-bash scripts/repair-openlore-grammar.sh && openlore analyze --force
-
-# 7. Optional but recommended before each commit (no API key)
-openlore drift     # detect spec/code drift
-openlore drift --install-hook # Enforcing drift check before every commit, use `openlore drift --uninstall-hook` if it starts misbehaving
+bash scripts/install-ai-sdlc.sh          # pnpm, Freebuff, OpenSpec, OpenLore + AWS CLI/uv
+bash scripts/install-ai-sdlc.sh --skip-aws        # AI tooling only
+bash scripts/install-ai-sdlc.sh --with-drift-hook # also install the `openlore drift` pre-commit hook
 ```
 
-> **Why step 6 only on ARM64.** `tree-sitter-c-sharp@0.21.3` publishes prebuilds for darwin-x64, win32-x64, linux-x64 and darwin-arm64 but not linux-arm64, so Apple-Silicon devcontainers need the one-time source build; without it C# files would be indexed for search but never graphed.
+It installs [pnpm](https://pnpm.io/), the global tools ([Freebuff](https://github.com/CodebuffAI/freebuff), [OpenSpec](https://github.com/Fission-AI/OpenSpec/), [OpenLore](https://github.com/clay-good/OpenLore)), runs the OpenSpec baseline and `openlore analyze` index build, repairs the OpenLore grammars on ARM64, and installs the AWS tooling (see [AWS tooling](#aws-tooling)). Re-running after a devcontainer rebuild updates the tools and rebuilds the index.
+
+> **Why step 6 only on ARM64.** `tree-sitter-c-sharp@0.21.3` publishes prebuilds for darwin-x64, win32-x64, linux-x64 and darwin-arm64 but not linux-arm64, so Apple-Silicon devcontainers need the one-time source build (the script does it); without it C# files would be indexed for search but never graphed.
 
 > **Why most of OpenLore is keyless.** `openlore analyze`, `orient`, `drift`, `doctor` and the MCP tools run fully locally; only `openlore verify`/`generate` additionally require an LLM API key.
 
-> The sequence above is also flexible enough to be run in a brand-new project, should the setup be copied elsewhere.
+> The script is flexible enough to be run in a brand-new project, should the setup be copied elsewhere.
+
+## AWS tooling
+
+The AWS tooling is installed by the same script as the AI tools (`bash scripts/install-ai-sdlc.sh`; `--skip-aws` to omit it). It installs, user-local and idempotently:
+
+- **AWS CLI v2** — the credential base for everything AWS.
+- **uv** — provides `uvx`, which runs the AWS MCP Server SigV4 proxy wired in `.agents/mcp.json`.
+- Pre-warms the `mcp-proxy-for-aws` package so the first MCP connection does not stall.
+
+Credentials are never baked in: after a rebuild, run the script and then authenticate once with `aws login --remote --region eu-west-3` (or plain `aws login` where a browser can reach this device). The session is valid 12 hours and renews for 90 days without re-authenticating. For the AWS deployment runbook, see [Deployment](deployment-aws.md).
+
+**Why not the Agent Toolkit wizard.** `aws configure agent-toolkit` auto-detects a fixed set of agents (Claude Code, Codex, Cursor, …) by their global config directories; Freebuff is not on that list, so the wizard refuses to install. The equivalent pieces are wired manually instead: the `aws-mcp` entry below, and AWS skills installed into `.agents/skills/` (see the [AWS guidance](../AGENTS.md)).
 
 ## MCP servers for Freebuff
 
-Freebuff loads MCP servers from `.agents/mcp.json` (searched in the project root, its parent, then `~/.agents/`), keyed by `mcpServers`. This repo wires two servers:
+Freebuff loads MCP servers from `.agents/mcp.json` (searched in the project root, its parent, then `~/.agents/`), keyed by `mcpServers`. This repo wires three servers:
 
 - `openlore` — `openlore mcp --preset full` over stdio (all 73 tools, including the OpenSpec tools `check_spec_drift`, `search_specs`, `get_spec`, `list_spec_domains`, and `audit_spec_coverage`).
 - `microsoft-learn` — the official Microsoft Learn MCP over HTTP (referenced in `AGENTS.md`).
+- `aws-mcp` — the [AWS MCP Server](https://aws-mcp.us-east-1.api.aws/mcp), connected through the SigV4 proxy (`uvx mcp-proxy-for-aws==1.6.4`, metadata `AWS_REGION=eu-west-3`). It signs requests with the `aws login` session credentials (auto-rotating every 15 minutes) and exposes `retrieve_skill`/`search_documentation`, so any skill in the AWS catalog can be pulled on demand without installing it locally.
 
 **Why the MCP server needs the index first.** The MCP server reads the index built by `openlore analyze`, so steps 4–6 above must run before Freebuff's `orient`/call-graph tools return results on this codebase.
 
