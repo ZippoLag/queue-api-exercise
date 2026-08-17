@@ -181,9 +181,13 @@ Each operation below is a documented, repeatable procedure. The stores are throw
 **Why it's not just "re-run init".** The seed tool is a **no-op over an existing store** (existing users are left unchanged), and the node has the runtime only — no SDK, so the local `scripts/init-db.sh` does not apply there. Rotating therefore needs a fresh store: update the SSM parameter, delete the store on the node, then re-deploy — the published `AuthDbInit` re-seeds it from the new value and restarts the services.
 
 ```bash
-# 1. rotate each password in SSM (repeat for each password you rotate)
+# 1. rotate each password in SSM (repeat for each password you rotate); passwords must be
+#    randomly generated GUIDs (initial requirements). Generate a dashed 8-4-4-4-12 RFC 4122
+#    version-4 GUID from openssl rand output (never the bare hex form the init tool rejects),
+#    then store it:
+NEW_PW="$(raw=$(openssl rand -hex 16); nib="${raw:16:1}"; printf -v vh '%x' "$((8 + (16#$nib & 3)))"; printf '%s-%s-%s-%s-%s' "${raw:0:8}" "${raw:8:4}" "4${raw:13:3}" "${vh}${raw:17:3}" "${raw:20:12}")"
 aws ssm put-parameter --name /queue-api/<env>/cms-password --type SecureString \
-  --value "$(openssl rand -hex 16)" --overwrite --region eu-west-3
+  --value "$NEW_PW" --overwrite --region eu-west-3
 
 # 2. on the node, delete the credential store so it re-seeds from the new value
 rm /var/lib/queue-api/queue-auth.db

@@ -107,6 +107,56 @@ public class CliTests
     }
 
     /// <summary>
+    /// Verifies a non-GUID password is rejected with a descriptive error and no store is created.
+    /// </summary>
+    /// <remarks>
+    /// Source business rule: the initial requirements fix passwords as randomly generated GUIDs, and the
+    /// initialization script rejects a password that is not a GUID (spec scenario "Non-GUID password is
+    /// rejected"). Every password must be a dashed 8-4-4-4-12 GUID — including the 32-char hex form the
+    /// AWS tooling used to generate, which plain <c>Guid.TryParse</c> would wrongly accept.
+    /// </remarks>
+    [Theory]
+    [MemberData(nameof(NonGuidPasswordCases))]
+    public async Task RunAsync_WithNonGuidPassword_PrintsErrorAndFails(string[] args)
+    {
+        var dbPath = Path.Combine(Path.GetTempPath(), $"cli-tests-{Guid.NewGuid():N}.db");
+        try
+        {
+            using var stdout = new StringWriter();
+            using var stderr = new StringWriter();
+
+            var exitCode = await Cli.RunAsync(args, stdout, stderr);
+
+            exitCode.Should().Be(1);
+            stderr.ToString().Should().Contain("is not a GUID");
+            stderr.ToString().Should().Contain("Passwords must be randomly generated GUIDs");
+            stdout.ToString().Should().BeEmpty();
+            File.Exists(dbPath).Should().BeFalse();
+        }
+        finally
+        {
+            DeleteDatabaseFiles(dbPath);
+        }
+    }
+
+    /// <summary>
+    /// Argument vectors with one non-GUID password: a plain string and a 32-char hex string (the format
+    /// the AWS bootstrap used to generate) for each of the three positions.
+    /// </summary>
+    public static IEnumerable<object[]> NonGuidPasswordCases =>
+    [
+        // cms position: plain text and 32-char hex
+        [new[] { "store.db", "not-a-guid", AdministratorPassword, RegularPassword }],
+        [new[] { "store.db", "131ca3ba3df6d4e7c9fb4c88c420fb45", AdministratorPassword, RegularPassword }],
+        // administrator position
+        [new[] { "store.db", CmsPassword, "not-a-guid", RegularPassword }],
+        [new[] { "store.db", CmsPassword, "131ca3ba3df6d4e7c9fb4c88c420fb45", RegularPassword }],
+        // regular position
+        [new[] { "store.db", CmsPassword, AdministratorPassword, "not-a-guid" }],
+        [new[] { "store.db", CmsPassword, AdministratorPassword, "131ca3ba3df6d4e7c9fb4c88c420fb45" }],
+    ];
+
+    /// <summary>
     /// Verifies re-running on an already-seeded store reports the existing users and exits successfully.
     /// </summary>
     /// <remarks>

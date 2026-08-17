@@ -92,13 +92,27 @@ fi
 cd "$WORK_DIR/repo/infra/aws"
 
 # ── 4. Secrets (reuse on re-run; generate only once) ─────────────────────────────
+# Passwords are randomly generated GUIDs (initial requirements); generate a dashed
+# 8-4-4-4-12 RFC 4122 version-4 GUID from openssl rand output — no uuidgen dependency,
+# and never the bare hex form the CLI rejects. Version nibble (position 13) is set to 4
+# and the variant nibble (position 17) to 8-b, per the v4 spec.
+generate_guid() {
+  local raw nib vh
+  raw="$(openssl rand -hex 16)"
+  nib="${raw:16:1}"                                  # variant nibble
+  printf -v vh '%x' "$((8 + (16#$nib & 3)))"         # force 8-b
+  # version nibble at position 12 = 4; variant at position 16 = vh; all slices are
+  # taken from the original 32-char hex so no position is lost.
+  printf '%s-%s-%s-%s-%s' "${raw:0:8}" "${raw:8:4}" "4${raw:13:3}" "${vh}${raw:17:3}" "${raw:20:12}"
+}
+
 ssm_get_or_generate() {
   local name="$1"
   if value="$(aws ssm get-parameter --region "$REGION" --name "$name" \
     --with-decryption --query Parameter.Value --output text 2>/dev/null)"; then
     printf '%s' "$value"
   else
-    openssl rand -hex 16
+    generate_guid
   fi
 }
 CMS_PW="$(ssm_get_or_generate "/queue-api/$ENV_NAME/cms-password")"

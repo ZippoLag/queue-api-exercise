@@ -60,6 +60,23 @@ public static class Cli
             return 1;
         }
 
+        // The initial requirements fix passwords as randomly generated GUIDs; the CLI is the operator
+        // boundary of the initialization script, so it rejects any password that is not a dashed
+        // 8-4-4-4-12 GUID (TryParseExact with format "D" — plain TryParse also accepts the 32-char
+        // N format, which is exactly the non-GUID hex the AWS tooling used to produce).
+        var invalidUser = !IsGuid(cmsPassword) ? CmsUsername
+            : !IsGuid(adminPassword) ? AdministratorUsername
+            : !IsGuid(regularPassword) ? RegularUserUsername
+            : null;
+        if (invalidUser is not null)
+        {
+            await stderr.WriteLineAsync(
+                $"[Error] Password for user '{invalidUser}' is not a GUID. "
+                + "Passwords must be randomly generated GUIDs (e.g. 8-4-4-4-12 dashed format, "
+                + "like aaaabbbb-cccc-dddd-eeee-ffff00001111).");
+            return 1;
+        }
+
         // A full connection string (contains '=') is passed through untouched; a bare path is wrapped so
         // callers can hand either form to the tool.
         var connectionString = dbPath.Contains('=') ? dbPath : $"Data Source={dbPath}";
@@ -89,4 +106,12 @@ public static class Cli
 
         return 0;
     }
+
+    /// <summary>
+    /// Determines whether the supplied password is a randomly generated GUID in dashed 8-4-4-4-12 form.
+    /// </summary>
+    /// <param name="password">The password to validate.</param>
+    /// <returns><see langword="true"/> when the password parses as a GUID in the "D" format.</returns>
+    private static bool IsGuid(string password)
+        => Guid.TryParseExact(password, "D", out _);
 }

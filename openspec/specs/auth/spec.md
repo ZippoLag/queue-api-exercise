@@ -43,6 +43,8 @@ The system SHALL provide an idempotent initialization script that creates the cr
 
 The script SHALL take the passwords as positional arguments. It SHALL NOT read credentials from environment variables: the legacy `AUTH_CMS_PASSWORD` variable SHALL NOT be consulted.
 
+The supplied passwords SHALL be randomly generated GUIDs, as the initial requirements specify. The script SHALL reject a supplied password that is not a GUID with a descriptive error, so a non-GUID password is never stored.
+
 #### Scenario: Initializing a fresh store
 
 - **WHEN** an operator runs the initialization script against a location with no credential store
@@ -57,6 +59,11 @@ The script SHALL take the passwords as positional arguments. It SHALL NOT read c
 
 - **WHEN** an operator runs the initialization script with passwords as positional arguments
 - **THEN** the users are seeded with those credentials and no environment variables are consulted
+
+#### Scenario: Non-GUID password is rejected
+
+- **WHEN** an operator supplies a password that is not a GUID to the initialization script
+- **THEN** the script fails with a descriptive error and no user is created or modified
 
 ### Requirement: Passwords are stored as hashes
 

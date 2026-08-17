@@ -92,6 +92,7 @@ above:
 Credentials live in the SQLite credential store (`db/queue-auth.db` by default — see above), provisioned idempotently by `scripts/init-db.sh`. The script's default `DB_PATH` already matches the APIs' own resolution (the CmsWebhook project's `db/` directory); override it with `DB_PATH` or point `ConnectionStrings:AuthDb` elsewhere and pass the absolute path.
 
 - The script seeds the three reserved users `cms-webhook`, `administrator` and `regular-user`, taking the three passwords as positional arguments: `scripts/init-db.sh [cms-password] [admin-password] [regular-password]`. Re-running over an already-seeded store leaves existing users unchanged (idempotent).
+- Passwords must be randomly generated GUIDs (dashed 8-4-4-4-12 format) per the initial requirements; the init tool rejects any other format with a descriptive error. Deployed (SSM) passwords are also generated as GUIDs — see [AWS deployment](deployment-aws.md).
 - The store location is configurable via `ConnectionStrings:AuthDb` (e.g. the `ConnectionStrings__AuthDb` environment variable).
 - The reserved cms username via `Auth:CmsUsername` (e.g. the `Auth__CmsUsername` environment variable); the Users API's administrator username via `Auth:AdministratorUsername` (e.g. `Auth__AdministratorUsername`).
 - To change a seeded user's password, delete `db/queue-auth.db` and re-run the script (re-running with a different password leaves the existing user unchanged).
