@@ -123,6 +123,55 @@ DOMAIN="" bash scripts/deploy-aws.sh
 
 **Expected failure before setup.** Until the environment exists and the secrets are set, a push to `main` will fail the `deploy` job (and the OIDC role does not exist yet either) — that is expected. Once the bootstrap has run and the secrets are in place, re-run the failed job from the Actions tab (or push again) and CI publishes the artifacts to S3 and deploys/verifies itself.
 
+## New environment checklist
+
+**General concept — one environment per `ENV_NAME`.** The whole stack is parameterized by `ENV_NAME` (`demo`, `staging`, `prod`, …): SSM parameters, artifact bucket, instance, and OIDC role all carry the environment name. Creating another environment is the same bootstrap with a different name; this checklist is the ordered end-to-end wiring for the first time — from an empty container to a deployed environment.
+
+**Prerequisites — tooling + authentication** (once per machine/container; see [Tooling](tooling.md)):
+
+```bash
+bash scripts/install-ai-sdlc.sh                  # AWS CLI, uv, gh, terraform, …
+aws login --remote --region eu-west-3            # 12 h session, renewable for 90 days
+gh auth login -p https -s repo,workflow,read:org
+```
+
+**1. Create the environment.** Edit the top of [`scripts/bootstrap-aws.sh`](https://github.com/ZippoLag/queue-api-exercise/blob/main/scripts/bootstrap-aws.sh): set `ENV_NAME` (e.g. `staging`), `REGION`, optional `DOMAIN` + `ROUTE53_ZONE_ID`, and the `GITHUB_ORG_ID` / `GITHUB_REPO_ID` (unchanged unless the repo moves — see the numeric-ID note above). Run it in AWS CloudShell (or anywhere with AWS credentials):
+
+```bash
+bash scripts/bootstrap-aws.sh --infra-only
+```
+
+The script prints the five GitHub values the CI deploy job needs (account id, artifact bucket, instance id, env name, region).
+
+**2. Wire GitHub.** Set the reported values as repo secrets/variables:
+
+```bash
+gh secret set AWS_ACCOUNT_ID   --repo ZippoLag/queue-api-exercise --body <account-id>
+gh secret set AWS_S3_BUCKET    --repo ZippoLag/queue-api-exercise --body <bucket>
+gh secret set AWS_INSTANCE_ID  --repo ZippoLag/queue-api-exercise --body <instance-id>
+gh variable set AWS_ENV_NAME   --repo ZippoLag/queue-api-exercise --body <env-name>
+gh variable set AWS_REGION     --repo ZippoLag/queue-api-exercise --body <region>
+```
+
+**3. Deploy.** Push to `main`; CI runs the gates and the deploy job ships the artifacts and verifies the live deployment (watch it in the Actions tab).
+
+**4. Verify** against the printed URLs (`-k` because the domainless certs are self-signed):
+
+```bash
+curl -k https://<public-ip>/health
+curl -k https://<public-ip>:8443/health
+```
+
+**Common first-time failures** — each was root-caused in this repo, so the fix is already in place if you see the symptom:
+
+| Symptom | Cause | Where fixed |
+|---|---|---|
+| `Not authorized to perform sts:AssumeRoleWithWebIdentity` | GitHub's 2025 OIDC `sub` claim carries numeric owner/repo IDs; a legacy-format trust policy no longer matches | `infra/aws/modules/iam/main.tf` (requires `github_org_id` / `github_repo_id`) |
+| `cannot execute binary file: Exec format error` | x64 apphost built on the CI runner, executed on the ARM64 node | `scripts/deploy-aws.sh` (publishes with the node's RID) |
+| `Couldn't find a valid ICU package` | AL2023 lacks the ICU libraries the .NET runtime needs | `user-data.sh.tftpl` (`dnf install -y libicu`) |
+
+**Multi-environment note.** `AWS_ENV_NAME` is a single repo-level variable, so the CI deploy job targets **one environment per secrets set**. Parallel environments (e.g. `demo` and `staging` both deployable) need environment-scoped secrets with a job-level `environment:` (or per-environment workflows) — pointing `AWS_ENV_NAME` at another environment just moves the single deploy target.
+
 ## Manual operations
 
 Each operation below is a documented, repeatable procedure. The stores are throwaway by design — treat them as such, and know that the APIs fail fast at startup if the credential store is missing (see [Architecture](architecture.md)).

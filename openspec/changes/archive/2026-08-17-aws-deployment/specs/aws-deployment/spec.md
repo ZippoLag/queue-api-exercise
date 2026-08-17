@@ -102,3 +102,54 @@ The CI workflow SHALL, on a push to `main` that passes the existing build, test,
 
 - **WHEN** a push to `main` fails any existing quality gate
 - **THEN** no deployment is performed
+
+### Requirement: CI authenticates to AWS through GitHub OIDC federation
+
+The CI deploy job SHALL authenticate to AWS via GitHub's OIDC federation rather than stored access keys, assuming a deploy role whose trust policy is scoped to this repository and matches GitHub's current OIDC subject-claim format, so a workflow run receives short-lived credentials for exactly that run.
+
+#### Scenario: Deploy job assumes the role without stored keys
+
+- **WHEN** a push to `main` reaches the deploy job
+- **THEN** it assumes the deploy role using an OIDC token issued for this repository (audience `sts.amazonaws.com`, subject scoped to this repo), with no AWS access keys stored in GitHub
+
+#### Scenario: Trust policy matches the current subject-claim format
+
+- **WHEN** GitHub issues the OIDC token with its current subject-claim format, including the numeric owner and repository IDs
+- **THEN** the trust policy's subject condition matches that format and the role assumption succeeds
+
+### Requirement: Published artifacts match the node's CPU architecture
+
+The deployment pipeline SHALL publish both APIs and the seed tool for the same CPU architecture as the target node (the default node is ARM64/Graviton), so the shipped binaries are executable on that node.
+
+#### Scenario: ARM64 node receives ARM64 artifacts
+
+- **WHEN** the target node is ARM64
+- **THEN** the published artifacts are built for `linux-arm64` and start successfully on the node
+
+#### Scenario: x86_64 node receives x86_64 artifacts
+
+- **WHEN** the target node is x86_64
+- **THEN** the published artifacts are built for `linux-x64` and start successfully on the node
+
+### Requirement: Node provisioning includes the .NET runtime prerequisites
+
+The node's first-boot provisioning SHALL install the .NET ASP.NET Core runtime together with its system prerequisites, notably the ICU globalization libraries that the runtime requires, so deployed applications start without missing-runtime errors.
+
+#### Scenario: Node boots with complete runtime prerequisites
+
+- **WHEN** a node finishes first-boot provisioning with the .NET runtime installed
+- **THEN** the ICU libraries required for globalization are present and both APIs start cleanly
+
+### Requirement: Bootstrap reports the GitHub wiring for a new environment
+
+The bootstrap script SHALL, when it creates a new environment without performing a first deploy (infra-only mode), report the GitHub secrets and variables the CI deploy job needs for that environment — account id, artifact bucket, instance id, environment name, and region — so a new environment can be wired to CI without consulting external documentation.
+
+#### Scenario: Infra-only bootstrap prints the wiring values
+
+- **WHEN** an operator bootstraps a new environment with the infra-only mode
+- **THEN** the report lists the exact GitHub secret and variable values to set for the deploy job
+
+#### Scenario: Setting the reported values enables CI deploys to the new environment
+
+- **WHEN** the operator sets the reported secrets and variables in GitHub and pushes to `main`
+- **THEN** the deploy job targets the new environment and deploys it

@@ -43,6 +43,8 @@ ExecStart=/opt/queue-api/cms/CmsWebhook.Api
 
 `cms-api` binds `0.0.0.0:8080`, `users-api` `0.0.0.0:8081` via `ASPNETCORE_URLS` — **the loopback-only Production default (`localhost:5000`) is the #1 silent failure** and is explicitly overridden everywhere (user-data, docs, smoke script parity).
 
+The node runs AL2023, which ships neither the .NET runtime nor the ICU globalization libraries the runtime needs — **missing `libicu` fails every app with "Couldn't find a valid ICU package"**. user-data therefore installs `libicu` unconditionally (idempotent) alongside the runtime, so a boot always converges even when the runtime already exists.
+
 ### D2: Networking — instance-level TLS via Caddy, no ALB
 
 One Elastic IP on the instance; security group allows inbound 80/443 from the internet and nothing else (**no public SSH** — deploys go through SSM, see D4). Caddy on the instance is the TLS terminator:
@@ -66,6 +68,11 @@ A `deploy` job (new, or appended to `ci.yml`) runs only on `main`, `needs: [buil
 4. Verification: poll both `/health`; then run the smoke flow (ingest → list → disable → enable → `cms-webhook` 403) against the live HTTPS endpoints.
 
 The S3 bucket doubles as the artifact channel for the console bootstrap script (D6): the same objects CI syncs are what CloudShell downloads for a first/manual deploy — **no .NET SDK needed in CloudShell**. Rationale: no SSH port, IAM-only auth (OIDC + instance role), reuses the exact contract `smoke-e2e.sh` already proves. Alternatives: **CodeDeploy** — heavier to wire (deployment groups, IAM service roles, appspec); **SSH deploy action** — needs an open port 22 and stored keys; both rejected for cost/complexity.
+
+Two load-bearing details learned in production:
+
+- **OIDC subject-claim format.** GitHub changed its OIDC `sub` claim in 2025 to include the numeric owner and repository IDs (`repo:owner@<owner-id>/repo@<repo-id>:ref:...`). A trust policy matching only the legacy `repo:owner/repo:*` form silently fails with `Not authorized to perform sts:AssumeRoleWithWebIdentity` even when everything else is correct — the `iam` module therefore requires `github_org_id` / `github_repo_id` and matches both the ID-qualified and legacy patterns. The failure is indistinguishable from a misconfigured role, so the diagnostic is to print the token's claims inside the run (`curl "$ACTIONS_ID_TOKEN_REQUEST_URL&audience=sts.amazonaws.com"` and decode the JWT).
+- **Architecture-matched publish.** The default node is ARM64 (`t4g.small`), but `dotnet publish` without a RID emits x64 apphost launchers (from the x64 CI runner) that die with `Exec format error` on the node. `deploy-aws.sh` resolves the instance's `Architecture` and publishes framework-dependent with the matching RID (`linux-arm64` / `linux-x64`).
 
 ### D5: IaC — Terraform under `infra/aws/`
 
@@ -99,7 +106,9 @@ The one-copy-paste path from console to running service. CloudShell facts it des
 └────────────────────────────────────────────────────────────┘
 ```
 
-Idempotent by construction (terraform re-apply is a no-op; artifacts are re-shipped), so re-pasting is safe. Multi-environment: `ENV_NAME` + Terraform workspaces let the same script stand up `demo`/`staging`/`prod` stacks independently. Region flows into every `aws`/`terraform` invocation, so the `eu-west-3` default is honored even though CloudShell itself runs in a per-region sandbox.
+Idempotent by construction (terraform re-apply is a no-op; artifacts are re-shipped), so re-pasting is safe. `--infra-only` creates the environment and then **prints the GitHub secrets/vars the CI deploy job needs** (account id, artifact bucket, instance id, env name, region) — that report is the wiring step for a new environment: set the values in GitHub, push to `main`, and CI deploys. Region flows into every `aws`/`terraform` invocation, so the `eu-west-3` default is honored even though CloudShell itself runs in a per-region sandbox.
+
+Multi-environment: re-running the script with a new `ENV_NAME` stands up `demo`/`staging`/`prod` stacks independently (each environment's SSM parameters are namespaced by `ENV_NAME`). The CI deploy job targets **one environment per repo-level secrets set** — `AWS_ENV_NAME` is a single variable, so parallel environments need environment-scoped secrets or per-environment workflows, not just extra variables.
 
 ## Risks / Trade-offs
 
@@ -116,7 +125,8 @@ Idempotent by construction (terraform re-apply is a no-op; artifacts are re-ship
 
 1. Paste `scripts/bootstrap-aws.sh` into CloudShell (region variable already defaults to `eu-west-3`) — it clones, creates the stack, seeds secrets, and performs the first deploy from CI-published artifacts (or `--build` when none exist yet).
 2. If `DOMAIN` is set, point Route 53 records at the Elastic IP; Let's Encrypt issues the certificates automatically.
-3. Subsequent deploys are automatic: a green push to `main` runs the CI deploy job; **rollback** = re-run the deploy job with the previous artifact (`.previous` on disk, or the prior S3 object version).
+3. Set the GitHub secrets/vars from the bootstrap report (`AWS_ACCOUNT_ID`, `AWS_S3_BUCKET`, `AWS_INSTANCE_ID` as secrets; `AWS_ENV_NAME`, `AWS_REGION`, `AWS_DOMAIN` as variables) — without them the deploy job fails at OIDC role assumption with a misleading `Not authorized to perform sts:AssumeRoleWithWebIdentity`.
+4. Subsequent deploys are automatic: a green push to `main` runs the CI deploy job; **rollback** = re-run the deploy job with the previous artifact (`.previous` on disk, or the prior S3 object version).
 
 ## Open Questions
 
