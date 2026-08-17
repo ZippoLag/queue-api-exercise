@@ -87,8 +87,10 @@ Wants=network-online.target
 
 [Service]
 Type=notify
+# The Caddyfile sets `admin off` (no local admin API), which is exactly the API `caddy reload`
+# uses to push a new config — so config changes are applied with `systemctl restart caddy`,
+# never a reload (the reload would fail with "connection refused" on localhost:2019).
 ExecStart=/usr/local/bin/caddy run --config /etc/caddy/Caddyfile --adapter caddyfile
-ExecReload=/usr/local/bin/caddy reload --config /etc/caddy/Caddyfile --adapter caddyfile
 TimeoutStopSec=5
 LimitNOFILE=1048576
 LimitNPROC=512
