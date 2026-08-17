@@ -8,5 +8,13 @@
   href: docs/dsl_glossary.md
 - name: Development style
   href: docs/development-style.md
+- name: Debugging
+  href: docs/debugging.md
+- name: Testing
+  href: docs/testing.md
+- name: Tooling
+  href: docs/tooling.md
+- name: Deployment
+  href: docs/deployment-aws.md
 - name: API Reference
   href: api/

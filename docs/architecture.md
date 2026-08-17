@@ -1,27 +1,37 @@
 # Architecture
 
 ## Approach
-In tandem of the KISS principle, it would be an oversight in my years of experience to not treat this project as if it had plans to grow in the future, meaning I will aim to keep a clear separation of boundaries and domains within a Modular Monolith, following a Ports+Adapters and Clean architecture. Then, given the fact that from the start there are requirements for event handling and distinct flows (CMS VS Users), following an Event-Driven architecture (not Event-Sourcing for now) with CQRS also in place feels natural. Observability via logging and possibly OTEL will be approached as soon as justified.
+In tandem with the KISS principle, the project is treated as if it will grow, so boundaries stay clean from the start: a clear separation of boundaries and domains within a Modular Monolith, following a Ports+Adapters and Clean architecture. Given that the initial requirements cover event handling and distinct flows (CMS vs Users), an Event-Driven architecture (not Event-Sourcing for now) with CQRS in place is the natural fit. Observability via logging and possibly OTEL is approached as soon as justified.
 
-To get usable value ASAP, I will focus on implementing visible API implementation first, adding inner domain and infrastructure (and simple UI?) later as needed.
+To get usable value as soon as possible, the visible API implementation comes first, with the inner domain and infrastructure (and possibly a simple UI) added later as needed.
 
 ## System Overview
 
 ![alt text](system_overview.png)
 
-The Queue-API-Exercise system is meant to have 2 REST APIs available: a webhook for handling CMS entity-related events and one to handle Users and Admin Users requests. Knowing this project may grow, I choose to pay the cost of an initial scaffolding big-bang with boilerplate and creating the solution as a modular monolith, ready to be split whenever necessary.
+The Queue-API-Exercise system exposes 2 REST APIs: a webhook for handling CMS entity-related events and one to handle Users and Admin Users requests. Because the project may grow, the cost of an initial scaffolding big-bang with boilerplate is paid up front: the solution is a modular monolith, ready to be split whenever necessary.
 
-**Current implementation status:** the **CmsWebhook API** and the **Users API** are both fully implemented for v1 — shared auth, the `/cms/events` ingestion endpoint with asynchronous outbox processing into the entity store, the Users API's `/entities` read side and the administrator's enable/disable control, plus the `administrator`/`regular-user` seeding (see below).
+**Current implementation status:** the **CMS Webhook API** and the **Users API** are both fully implemented for v1 — shared auth, the `/cms/events` ingestion endpoint with asynchronous outbox processing into the entity store, the Users API's `/entities` read side and the administrator's enable/disable control, plus the `administrator`/`regular-user` seeding (see below).
+
+### Design decisions
+
+The system's shape follows a small set of deliberate decisions, each justified by a business rule or a growth expectation:
+
+- **Modular monolith, ready to split** — the solution starts as one deployable unit with clean boundaries, so a future split into services costs no re-architecture.
+- **Event-driven processing with CQRS** — the webhook records events and responds immediately while a background worker applies them (the outbox model, see below); writes and reads are independent.
+- **One shared store for both APIs** — the credential store and the entity store are each a single SQLite file both APIs address, which keeps auth and data consistent on one node; scaling out is explicitly deferred until the store moves off SQLite.
+- **PBKDF2 credential hashing** — passwords are never stored in plaintext; only per-user salted PBKDF2 hashes live in the credential store.
+- **No repository-marker walk** — deployments point the stores at a writable location via environment variables; nothing scans the filesystem for a solution file.
 
 ### Authentication & Authorization
-Authentication is handled in the CmsWebhook API as Basic Auth (`username`+`password`) in all incoming requests. The mechanism is implemented once in the shared `QueueApi.Auth` library (`src/Shared/QueueApi.Auth`) so the future User API reuses the same scheme and store.
+Authentication is handled in the CMS Webhook API as Basic Auth (`username`+`password`) in all incoming requests. The mechanism is implemented once in the shared `QueueApi.Auth` library (`src/Shared/QueueApi.Auth`) so the Users API reuses the same scheme and store.
 
 - `username` [10,20] characters in length, no other constraints. The reserved cms username is read from the `Auth:CmsUsername` configuration value (default `cms-webhook`) and the application fails to start if the configured value violates the length rule.
 - Credentials are **not** hardcoded: they live in the shared SQLite credential store and are verified against a stored **PBKDF2 hash** (per-user random salt). Plaintext passwords are never persisted. The store is provisioned idempotently by `scripts/init-db.sh` (username and password passed as positional arguments); the API fails to start with a descriptive error if the store is unreachable or has not been initialized with the cms user.
 
-> Note: `"cms-webhook"` is a special username reserved to be used by the CMS when connecting to the CMS API. It is the **only** username authorized to access the CMS API — valid credentials of any other user are rejected with `403`, all other failures with `401`. It is **not** valid for the Users API: valid `cms-webhook` credentials are rejected with `403` there too (the reserved username is read from `Auth:CmsUsername` in both APIs). `"administrator"` (configurable via `Auth:AdministratorUsername`) is the only user authorized to call the Users API's enable/disable endpoints and to see disabled entities; every other valid username is treated as a regular user. The three reserved users — `cms-webhook`, `administrator`, `regular-user` — are provisioned by `scripts/init-db.sh`.
+> Note: `"cms-webhook"` is a special username reserved to be used by the CMS when connecting to the CMS Webhook API. It is the **only** username authorized to access the CMS Webhook API — valid credentials of any other user are rejected with `403`, all other failures with `401`. It is **not** valid for the Users API: valid `cms-webhook` credentials are rejected with `403` there too (the reserved username is read from `Auth:CmsUsername` in both APIs). `"administrator"` (configurable via `Auth:AdministratorUsername`) is the only user authorized to call the Users API's enable/disable endpoints and to see disabled entities; every other valid username is treated as a regular user. The three reserved users — `cms-webhook`, `administrator`, `regular-user` — are provisioned by `scripts/init-db.sh`.
 
-> Note: no signature verification is provided in current version
+> Note: no signature verification is provided in the current version. The channel is trusted by construction — the CMS is a single known client, and production traffic is protected by Basic Auth over TLS — so request signing (HMAC/JWT) is deferred until a second external client or an untrusted hop exists.
 
 > Note: every endpoint requires Basic auth **except** the anonymous `/health` liveness probe and the `/openapi/v1.json` contract endpoint. Both are marked `.AllowAnonymous()` so load balancers, orchestrators, and clients can probe/discover them without credentials; every other endpoint still rejects anonymous requests with `401`.
 
@@ -33,10 +43,10 @@ Persistence uses `sqlite` relational databases accessed via **EF Core** (per the
 
 Relative `Data Source=` values resolve against the configured `Data:DbBasePath`, falling back to the application's content root — in local development the CmsWebhook project's content root is its own directory, so the stores land under `src/CmsWebhook/CmsWebhook.Api/db/`; the Users API points its own base path at that same directory (see its `appsettings.json`), so both APIs address the same two store files. Absolute and `:memory:` data sources are used as-is, and the resolved directory is created at startup when missing. There is **no repository-marker walk** (the `QueueApi.slnx` hunt is gone): a published deployment simply points `Data__DbBasePath` (or `ConnectionStrings__*`) at a writable location through environment variables — see [Configuration](configuration.md).
 
-Caching is out of scope.
+Caching is out of scope: the entity store is read by a single API on a single node, so the read path is cheap enough without a cache layer; a cache would add invalidation complexity for no measurable win at this scale.
 
 ### Performance
-Per the initial requirements, the event-processing decision is documented and justified: processing is **asynchronous** — the webhook records events and responds `201` immediately, while a background worker applies them (see the outbox model below). The write side uses a single writer context. The Users API's read side (User API) uses a read-only/query-optimized EF configuration: its listing query runs `AsNoTracking` and the visibility commands use a single-writer tracking context.
+Per the initial requirements, the event-processing decision is documented and justified: processing is **asynchronous** — the webhook records events and responds `201` immediately, while a background worker applies them (see the outbox model below). The write side uses a single writer context. The Users API's read side uses a read-only/query-optimized EF configuration: its listing query runs `AsNoTracking` and the visibility commands use a single-writer tracking context.
 
 ### Logging
 Leveled console output (`Console` with explicit levels) is used; richer logging (e.g. Serilog) and OTEL remain TBD. Per the initial requirements' observability section, all processed events — including failing ones — are logged: processed events at Information, stale/duplicate events at Warning, failures at Error with their exception.
@@ -44,7 +54,7 @@ Leveled console output (`Console` with explicit levels) is used; richer logging 
 ## CMS Webhook API - v1
 The `/cms/events` endpoint, event types, validations and event processing below describe the **implemented** v1 behavior.
 
-The **CmsWebhook** is intended to be a _webhooks API_ so it needs a quick response to the external system that's _notifying_ us of already-happened events. All **CmsEvent**s received will be stored in a `cms_event_log` table.
+The **CMS Webhook API** is intended to be a _webhooks API_ so it needs a quick response to the external system that's _notifying_ it of already-happened events. All **CmsEvent**s received will be stored in a `cms_event_log` table.
 
 > For the current **v1**, validations will be minimal. Whether **v2** will incorporate more complex validations in these endpoints or push this logic to async workers is TBD.
 
@@ -85,10 +95,11 @@ This endpoint acts as an Outbox, hence it validates and sanitizes only the base 
 When **CmsEvent**s are processed, a number of scenarios may arise depending on the `id` (entityId), `version` (entity version) and `payload`'s contents. These include, but are not limited to, the following:
 
 1. `publish`, `update` and `unPublish`, when they refer to an `id` of an object that doesn't exist, they create it.
-1. `publish`, `update` and `unPublish`, when an event with the same `id`, `version` **and** `type` was already recorded in the DB, do nothing (idempotent handling of re-delivered events). An event of a different `type` for the same `id` and `version` is **not** a duplicate: e.g. a `publish` followed by an `unPublish` of the same version must still flip the entity to "not published", and vice versa.
-  > a special case could be comparing the incoming `payload` with the entity already existing, or checking the "is published" flag status, I'm simplifying by ignoring these scenarios.
-1. `delete`, when referring to an `id` of an object that doesn't exist, does nothing.
-1. an event whose `version` is older than the entity's current stored version is ignored as stale (out-of-order delivery), so the stored entity always keeps the latest version.
+2. `publish`, `update` and `unPublish`, when an event with the same `id`, `version` **and** `type` was already recorded in the DB, do nothing (idempotent handling of re-delivered events). An event of a different `type` for the same `id` and `version` is **not** a duplicate: e.g. a `publish` followed by an `unPublish` of the same version must still flip the entity to "not published", and vice versa.
+
+  > Comparing the incoming `payload` with the already-existing entity, or checking the "is published" flag status, is intentionally simplified out of scope.
+3. `delete`, when referring to an `id` of an object that doesn't exist, does nothing.
+4. an event whose `version` is older than the entity's current stored version is ignored as stale (out-of-order delivery), so the stored entity always keeps the latest version.
 
 > Note: `payload` is assumed to always be present for `publish`, `update` and `unPublish` events, as stated in the request definition (`delete` events omit it).
 
@@ -104,7 +115,7 @@ Events are processed **immediately but asynchronously** (design decision): after
 ## Users API
 > **Implemented:** `src/Users/Users.Api` (endpoints), `Users.Application` (query/command handlers) and `Users.Infrastructure` (its own `UsersDbContext` over the shared `cms_entities` table) — there is no `Users.Domain` project; the module reuses `CmsWebhook.Domain.CmsEntity` directly.
 
-The **Users API** serves clients interested in their entities' data. It reads the same `cms_entities` store the CMS Webhook API writes, using the same shared credential store. Every endpoint requires Basic auth except the anonymous `/health` liveness probe, `/openapi/v1.json` and the always-on Scalar UI. The fallback policy admits any authenticated user **except** `cms-webhook` (reserved for the CMS API); the enable/disable commands additionally require the `administrator` username. Missing or invalid credentials yield `401`; a valid user without the required role yields `403`. The API fails to start when the store lacks the `administrator` user.
+The **Users API** serves clients interested in their entities' data. It reads the same `cms_entities` store the CMS Webhook API writes, using the same shared credential store. Every endpoint requires Basic auth except the anonymous `/health` liveness probe, `/openapi/v1.json` and the always-on Scalar UI. The fallback policy admits any authenticated user **except** `cms-webhook` (reserved for the CMS Webhook API); the enable/disable commands additionally require the `administrator` username. Missing or invalid credentials yield `401`; a valid user without the required role yields `403`. The API fails to start when the store lacks the `administrator` user.
 
 ### `/entities` GET
 Returns a list of all currently published entities:

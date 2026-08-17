@@ -1,6 +1,6 @@
 # Developer Debugging Specification
 
-> Source files: .vscode/launch.json, .vscode/tasks.json, docker-compose.dev.yml, README.md, docs/development-style.md, docs/configuration.md
+> Source files: .vscode/launch.json, .vscode/tasks.json, docker-compose.dev.yml, README.md, docs/debugging.md, docs/configuration.md
 
 ## Purpose
 

@@ -8,7 +8,7 @@ For local development and debugging, see the README [Quickstart](../README.md#qu
 
 **General concept — what "deploy to AWS" means here.** The APIs are ordinary ASP.NET Core processes. Deploying them to AWS means: put the built binaries on a server, run them as services, put a TLS-terminating proxy in front, and store the SQLite databases somewhere durable. No containers, no orchestrator, no load balancer.
 
-**In this project** the whole footprint lives under [`infra/aws/`](../infra/aws/) as Terraform, and a copy-pastable script ([`scripts/bootstrap-aws.sh`](../scripts/bootstrap-aws.sh)) creates it from the AWS console.
+**In this project** the whole footprint lives under [`infra/aws/`](https://github.com/ZippoLag/queue-api-exercise/tree/main/infra/aws) as Terraform, and a copy-pastable script ([`scripts/bootstrap-aws.sh`](https://github.com/ZippoLag/queue-api-exercise/blob/main/scripts/bootstrap-aws.sh)) creates it from the AWS console.
 
 **Why this shape.**
 
@@ -63,7 +63,7 @@ The footprint is deliberately minimal, so the running cost is a few dollars a mo
 
 **General concept — what "bootstrap" means.** Creating a whole environment by hand (VPC, security group, instance, EBS, SSM parameters, S3 bucket, OIDC role, first deploy) is error-prone. "Bootstrapping" means one script does all of it, idempotently, so you can re-run it safely.
 
-**Instructions.** Open **AWS CloudShell** (the console's built-in terminal) and paste [`scripts/bootstrap-aws.sh`](../scripts/bootstrap-aws.sh). The script:
+**Instructions.** Open **AWS CloudShell** (the console's built-in terminal) and paste [`scripts/bootstrap-aws.sh`](https://github.com/ZippoLag/queue-api-exercise/blob/main/scripts/bootstrap-aws.sh). The script:
 
 1. clones this repository,
 2. installs Terraform,
@@ -168,4 +168,4 @@ After 2026-12-31, stop the instance, change the type to `t4g.micro` (console: In
 - [Configuration](configuration.md) — the full environment-variable matrix (also usable without AWS), TLS, and how SSM values are rendered into the API processes' environment at boot.
 - [Architecture](architecture.md) — why the system is shaped this way (single node, outbox, shared stores).
 - README [Quickstart](../README.md#quickstart) — local development without AWS.
-- [`infra/aws/`](../infra/aws/) — the Terraform source of truth for this footprint.
+- [`infra/aws/`](https://github.com/ZippoLag/queue-api-exercise/tree/main/infra/aws) — the Terraform source of truth for this footprint.
