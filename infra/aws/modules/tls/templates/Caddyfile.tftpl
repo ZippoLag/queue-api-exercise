@@ -2,6 +2,15 @@
 
 {
 	admin off
+%{ if domain == "" }
+	# Clients connecting to a bare IP send no SNI (RFC 6066: SNI is hostname-only), so Caddy
+	# keys the handshake on the local destination address — which behind the EIP's 1:1 NAT
+	# is the instance's PRIVATE IP, not the public IP the certificate is issued for. The
+	# lookup finds no matching certificate and every handshake dies with "tlsv1 alert
+	# internal error" (caddyserver/caddy#6344). default_sni pins certificate selection for
+	# SNI-less handshakes to the public IP's certificate.
+	default_sni ${public_ip}
+%{ endif }
 }
 
 # Plain HTTP redirects to HTTPS: Basic Auth credentials must never travel unencrypted.
