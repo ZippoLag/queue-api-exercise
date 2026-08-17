@@ -16,6 +16,8 @@ bash scripts/install-ai-sdlc.sh --with-drift-hook # also install the `openlore d
 
 It installs [pnpm](https://pnpm.io/), the global tools ([Freebuff](https://github.com/CodebuffAI/freebuff), [OpenSpec](https://github.com/Fission-AI/OpenSpec/), [OpenLore](https://github.com/clay-good/OpenLore)), runs the OpenSpec baseline and `openlore analyze` index build, repairs the OpenLore grammars on ARM64, and installs the AWS tooling (see [AWS tooling](#aws-tooling)). Re-running after a devcontainer rebuild updates the tools and rebuilds the index.
 
+**Why npm/npx are provisioned too.** The `node` package pnpm manages ships only the node binary — no `npm`/`npx`. The script therefore installs npm as a pnpm global (`pnpm add -g npm`) so `npx` resolves on PATH; the `openlore drift` pre-commit hook invokes `npx --yes openlore` and one-off package runs use it too. Keep using **pnpm** for global installs in this repo: npm's own prefix resolves to the pnpm global directory, so `npm install -g` would mix package layouts.
+
 > **Why step 6 only on ARM64.** `tree-sitter-c-sharp@0.21.3` publishes prebuilds for darwin-x64, win32-x64, linux-x64 and darwin-arm64 but not linux-arm64, so Apple-Silicon devcontainers need the one-time source build (the script does it); without it C# files would be indexed for search but never graphed.
 
 > **Why most of OpenLore is keyless.** `openlore analyze`, `orient`, `drift`, `doctor` and the MCP tools run fully locally; only `openlore verify`/`generate` additionally require an LLM API key.

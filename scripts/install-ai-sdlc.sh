@@ -47,6 +47,17 @@ fi
 source "$HOME/.bashrc" 2>/dev/null || true
 pnpm runtime set node lts -g
 
+# 1b. npm/npx — the `node` package pnpm manages ships only the node binary (no
+#     npm/npx). npx is what the OpenLore drift hook invokes (and one-off package
+#     runs use), so provision npm via pnpm to put npx on PATH. Use pnpm, not npm,
+#     for global installs in this repo: npm's own prefix is the pnpm global dir.
+if command -v npx >/dev/null 2>&1; then
+  echo "[install-ai-sdlc] npx already present: $(npx --version 2>&1)"
+else
+  echo "[install-ai-sdlc] Installing npm (provides npx) as a pnpm global..."
+  pnpm add -g npm
+fi
+
 # 2. Global tools
 echo "[install-ai-sdlc] Installing global tools (freebuff, openspec, openlore)..."
 pnpm install -g freebuff
