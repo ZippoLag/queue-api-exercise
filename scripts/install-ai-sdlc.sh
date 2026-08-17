@@ -8,7 +8,8 @@
 #
 #   Part 1 - AI coding toolchain: pnpm, Freebuff, OpenSpec, OpenLore
 #            (index, ARM64 grammar repair, optional drift hook)
-#   Part 2 - AWS tooling: AWS CLI v2, uv (uvx), AWS MCP proxy prewarm
+#   Part 2 - GitHub + IaC tooling: gh (GitHub CLI), Terraform
+#   Part 3 - AWS tooling: AWS CLI v2, uv (uvx), AWS MCP proxy prewarm
 #
 # Credentials are NEVER touched: after a rebuild, authenticate once with
 # `aws login --remote --region eu-west-3` (12h session, renewable 90 days).
@@ -86,7 +87,41 @@ if [ "$WITH_DRIFT_HOOK" = "1" ]; then
   openlore drift --install-hook || echo "[install-ai-sdlc] warning: could not install the drift hook"
 fi
 
-# ----------------------------------------------------------------- Part 2: AWS --
+# ------------------------------------------------- Part 2: GitHub + IaC --
+# gh (GitHub CLI) — repo secrets/vars, workflow runs, PRs (auth: `gh auth login`)
+if command -v gh >/dev/null 2>&1; then
+  echo "[install-ai-sdlc] gh already present: $(gh --version 2>&1 | head -1)"
+else
+  echo "[install-ai-sdlc] Installing GitHub CLI (gh)..."
+  GH_VERSION="$(curl -fsSL https://api.github.com/repos/cli/cli/releases/latest | sed -n 's/.*"tag_name": *"v\([^"]*\)".*/\1/p' | head -1)"
+  case "$(uname -m)" in
+    aarch64|arm64) GH_ARCH=arm64 ;;
+    x86_64) GH_ARCH=amd64 ;;
+    *) echo "[install-ai-sdlc] Unsupported arch for gh: $(uname -m)" >&2; exit 1 ;;
+  esac
+  curl -fsSL "https://github.com/cli/cli/releases/download/v${GH_VERSION}/gh_${GH_VERSION}_linux_${GH_ARCH}.tar.gz" \
+    | tar -xz -C /tmp -f -
+  cp "/tmp/gh_${GH_VERSION}_linux_${GH_ARCH}/bin/gh" "$HOME/.local/bin/"
+  echo "[install-ai-sdlc] gh installed: $(gh --version 2>&1 | head -1)"
+fi
+
+# terraform — the infra/aws IaC tool (pinned to the version CI and bootstrap use)
+if command -v terraform >/dev/null 2>&1; then
+  echo "[install-ai-sdlc] terraform already present: $(terraform version 2>&1 | head -1)"
+else
+  echo "[install-ai-sdlc] Installing Terraform 1.9.8..."
+  case "$(uname -m)" in
+    aarch64|arm64) TF_ARCH=arm64 ;;
+    x86_64) TF_ARCH=amd64 ;;
+    *) echo "[install-ai-sdlc] Unsupported arch for terraform: $(uname -m)" >&2; exit 1 ;;
+  esac
+  curl -fsSL -o /tmp/terraform.zip \
+    "https://releases.hashicorp.com/terraform/1.9.8/terraform_1.9.8_linux_${TF_ARCH}.zip"
+  unzip -o -q /tmp/terraform.zip -d "$HOME/.local/bin/"
+  echo "[install-ai-sdlc] terraform installed: $(terraform version 2>&1 | head -1)"
+fi
+
+# ----------------------------------------------------------------- Part 3: AWS --
 if [ "$SKIP_AWS" = "0" ]; then
   echo "[install-ai-sdlc] Installing AWS tooling..."
 
