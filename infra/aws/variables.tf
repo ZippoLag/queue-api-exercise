@@ -83,3 +83,9 @@ variable "github_repo" {
   type        = string
   default     = ""
 }
+
+variable "bucket_suffix" {
+  description = "Optional suffix appended to the artifact bucket name (bucket names are globally unique)."
+  type        = string
+  default     = ""
+}
