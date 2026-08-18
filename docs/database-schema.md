@@ -9,6 +9,38 @@ The system uses two independent SQLite stores:
 
 Both are addressed through `ConnectionStrings:*`; relative `Data Source=` paths resolve against `Data:DbBasePath` (falling back to the application's content root) — see [Configuration](configuration.md).
 
+```mermaid
+erDiagram
+    Users {
+        INTEGER Id PK
+        TEXT username UK
+        TEXT password_hash
+    }
+    cms_event_log {
+        INTEGER Id PK
+        TEXT entity_id
+        TEXT event_type
+        INTEGER version
+        TEXT payload_json
+        TEXT timestamp
+        TEXT received_at
+        TEXT status
+        TEXT error
+        TEXT processed_at
+    }
+    cms_entities {
+        TEXT Id PK
+        INTEGER latest_version
+        TEXT payload_json
+        INTEGER is_published
+        INTEGER is_visible_by_admin
+        TEXT updated_at
+    }
+    cms_event_log }o--|| cms_entities : "applied to"
+```
+
+The `cms_event_log.entity_id` → `cms_entities.Id` link is a **logical** relationship applied by the outbox worker's upsert — no foreign-key constraint is declared in the EF model. `Users` lives in the separate auth store (`queue-auth.db`) and has no relationship to the CMS tables.
+
 ## Auth store — `Users`
 
 One row per registered user. Credentials are never plaintext: `password_hash` stores the self-describing PBKDF2-HMAC-SHA256 encoding (`PBKDF2-SHA256$<iterations>$<base64 salt>$<base64 derived key>`, 100,000 iterations), so the per-user random salt travels inside the encoded value and there is no separate salt column.
