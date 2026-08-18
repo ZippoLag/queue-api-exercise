@@ -8,7 +8,6 @@ The DocFX site is generated from `docs/**` markdown plus the XML doc comments of
 - **Stale XML doc comments that render in the DocFX API reference** — remove "deferred"/"(future)" from comments that describe the now-implemented Users API:
   - `src/CmsWebhook/CmsWebhook.Domain/CmsEntity.cs` — class `<remarks>` ("used by the deferred Users API") and `IsVisibleByAdmin` summary ("from the (future) Users API").
   - `src/CmsWebhook/CmsWebhook.Infrastructure/CmsDbContext.cs` — `<remarks>` ("the processed state the deferred Users API will read").
-- **Regression scan** — add a check (test or CI grep) that fails when the banned delete-row wording or "deferred/future Users API" phrasing reappears in `docs/**` or `src/**` XML comments, so the DocFX site cannot silently regress.
 - **Verify the DocFX build** — run `dotnet docfx build` (if the tool is available) to confirm the site renders with the corrected wording and no broken links.
 
 No runtime behavior, schemas, or OpenAPI contract changes.
@@ -27,5 +26,4 @@ None.
 
 - **Docs**: `docs/api-contract.md` (Event semantics table, `delete` row).
 - **XML comments**: `src/CmsWebhook/CmsWebhook.Domain/CmsEntity.cs`, `src/CmsWebhook/CmsWebhook.Infrastructure/CmsDbContext.cs`.
-- **Tests/tooling**: a wording-regression scan (location chosen at apply time — either a test project or a CI grep step).
 - **Out of scope**: `docs/archived/**` (invariant, never modified), the OpenSpec specs themselves, runtime behavior, and the OpenAPI documents (owned by `sanitize-openapi-docs`).

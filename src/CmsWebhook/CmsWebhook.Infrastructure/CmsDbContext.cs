@@ -10,7 +10,7 @@ namespace CmsWebhook.Infrastructure;
 /// Design D3/D8: the CMS database is independent of the shared auth credential store, configured via
 /// <c>ConnectionStrings:CmsDb</c> and provider-neutral EF Core code (swapping engines later is a provider
 /// + connection-string change). The outbox (<c>cms_event_log</c>) is an append-only audit of accepted
-/// deliveries; the <c>cms_entities</c> table is the processed state the deferred Users API will read.
+/// deliveries; the <c>cms_entities</c> table is the processed state the Users API reads.
 /// </remarks>
 public class CmsDbContext : DbContext
 {

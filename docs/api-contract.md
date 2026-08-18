@@ -36,7 +36,7 @@ Ingests events from the external CMS. The body is a **single event object or a b
 | `publish` | The entity is published with newer details. | Marks published; updates content to the event's version. |
 | `update` | An existing entity was changed. | Updates content without touching the published flag. |
 | `unPublish` | The entity was unpublished (not removed from the CMS — disabled). | Keeps the entity **in** the store, marks it unpublished (hidden from regular users). |
-| `delete` | The entity was removed/unpublished for good. | **Hard-deletes** the entity from the store. |
+| `delete` | The entity was deleted — removed from the store unrecoverably. | **Hard-deletes** the entity from the store. |
 
 **Why delete and unPublish differ.** The CMS unpublishes an entity by disabling it, not removing it — so `unPublish` keeps the data (hidden), while `delete` removes it. Both are honored faithfully on the store.
 

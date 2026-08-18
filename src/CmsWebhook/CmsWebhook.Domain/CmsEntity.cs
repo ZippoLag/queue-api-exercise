@@ -7,7 +7,7 @@ namespace CmsWebhook.Domain;
 /// Glossary: a <b>CmsEntity</b> is the internal representation of an entity from the external CMS. It
 /// keeps track of the latest data version (initial requirements: "Entities must keep track of the latest
 /// data version"), the published flag (set by <c>publish</c>/<c>unPublish</c>, untouched by
-/// <c>update</c>) and the administrator's visibility override used by the deferred Users API
+/// <c>update</c>) and the administrator's visibility override used by the Users API
 /// (defaults to visible; disabling is independent of publishing status).
 /// </remarks>
 public class CmsEntity
@@ -33,7 +33,7 @@ public class CmsEntity
     public bool IsPublished { get; set; }
 
     /// <summary>
-    /// Whether an administrator has disabled this entity from the (future) Users API.
+    /// Whether an administrator has disabled this entity from the Users API.
     /// </summary>
     public bool IsVisibleByAdmin { get; set; } = true;
 

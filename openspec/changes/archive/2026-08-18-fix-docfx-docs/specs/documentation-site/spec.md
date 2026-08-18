@@ -24,10 +24,5 @@ The documentation SHALL describe implemented capabilities as implemented. XML do
 
 #### Scenario: No stale future/deferred wording about the Users API
 
-- **WHEN** the DocFX sources (conceptual markdown and XML doc comments of `src/**`) are scanned for "deferred" or "(future)" phrasing about the Users API
-- **THEN** no occurrence remains in comments or docs describing the implemented Users API as future or deferred
-
-#### Scenario: Regression scan fails on reintroduced wording
-
-- **WHEN** the banned delete-row wording or the stale future/deferred Users API phrasing is reintroduced into the DocFX sources
-- **THEN** the project's checks (tests or CI) report the regression, so the wording cannot silently return
+- **WHEN** a reader consults the DocFX sources (conceptual markdown and XML doc comments of `src/**`) about the Users API
+- **THEN** no comment or doc describes the implemented Users API as future or deferred
