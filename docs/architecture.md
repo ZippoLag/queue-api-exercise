@@ -11,7 +11,7 @@ To get usable value as soon as possible, the visible API implementation comes fi
 
 The Queue-API-Exercise system exposes 2 REST APIs: a webhook for handling CMS entity-related events and one to handle Users and Admin Users requests. Because the project may grow, the cost of an initial scaffolding big-bang with boilerplate is paid up front: the solution is a modular monolith, ready to be split whenever necessary.
 
-**Current implementation status:** the **CMS Webhook API** and the **Users API** are both fully implemented for v1 — shared auth, the `/cms/events` ingestion endpoint with asynchronous outbox processing into the entity store, the Users API's `/entities` read side and the administrator's enable/disable control, plus the `administrator`/`regular-user` seeding (see below).
+**Current implementation status:** the **CMS Webhook API** and the **Users API** are both fully implemented for v1 — shared auth, the `/cms/events` ingestion endpoint with asynchronous outbox processing into the entity store, the Users API's `/entities` read side and the administrator's enable/disable control, plus the `administrator`/`regular-user` seeding and the browser UI the Users API serves at its origin root (see below).
 
 ### Design decisions
 
@@ -116,6 +116,14 @@ Events are processed **immediately but asynchronously** (design decision): after
 > **Implemented:** `src/Users/Users.Api` (endpoints), `Users.Application` (query/command handlers) and `Users.Infrastructure` (its own `UsersDbContext` over the shared `cms_entities` table) — there is no `Users.Domain` project; the module reuses `CmsWebhook.Domain.CmsEntity` directly.
 
 The **Users API** serves clients interested in their entities' data. It reads the same `cms_entities` store the CMS Webhook API writes, using the same shared credential store. Every endpoint requires Basic auth except the anonymous `/health` liveness probe, `/openapi/v1.json` and the always-on Scalar UI. The fallback policy admits any authenticated user **except** `cms-webhook` (reserved for the CMS Webhook API); the enable/disable commands additionally require the `administrator` username. Missing or invalid credentials yield `401`; a valid user without the required role yields `403`. The API fails to start when the store lacks the `administrator` user.
+
+### Browser UI (served at the origin root)
+
+The Users API hosts a **Blazor WebAssembly** client (`src/Users/Users.Web`) and serves it at its origin root (`/`) with the hosted-WASM pipeline: `UseBlazorFrameworkFiles()` serves the client's `_framework` assets and a `MapFallbackToFile("index.html")` fallback serves the shell for client-side routes, both **anonymous** — the static-file and fallback middleware run before the auth middleware, so the shell loads without credentials while every endpoint keeps its exact auth semantics. The UI calls the API's own endpoints **same-origin**, so no CORS is configured anywhere.
+
+- **Sign-in** collects the same username/password the API authenticates against and attaches them as a Basic `Authorization` header on a same-origin `HttpClient`; credentials live only in memory for the session. `401`/`403` — including the reserved `cms-webhook` rejection — surface as an inline error.
+- **Role is derived from the username**, exactly as the API derives it: the `administrator` sees the full table with a per-row enable/disable toggle backed by the existing `POST /entities/{id}/disable|enable` endpoints; every other user sees the same table **without** the toggle column.
+- **No API change**: serving the UI is additive anonymous static-file serving only; every endpoint, auth policy, and the OpenAPI contract behave exactly as before.
 
 ### `/entities` GET
 Returns a list of all currently published entities:
