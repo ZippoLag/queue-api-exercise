@@ -9,7 +9,7 @@
 
 - [x] 2.1 `CmsServiceCollectionExtensions`: read `Db:Provider` from `IConfiguration` (default `sqlite`) and register `CmsDbContext` through the helper
 - [x] 2.2 `UsersServiceCollectionExtensions`: same for `UsersDbContext`
-- [ ] 2.3 `BasicAuthenticationServiceCollectionExtensions` (QueueApi.Auth): same for `AuthDbContext`
+- [x] 2.3 `BasicAuthenticationServiceCollectionExtensions` (QueueApi.Auth): same for `AuthDbContext`
 - [ ] 2.4 `tools/AuthDbInit/AuthDbInitializer.cs`: build `AuthDbContext` options through the helper with the default provider; CLI contract unchanged
 
 ## 3. Documentation

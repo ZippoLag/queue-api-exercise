@@ -16,7 +16,7 @@ var cmsDbConnectionString = ResolveConnectionString(builder.Configuration, build
 var cmsUsername = ResolveUsername(builder.Configuration, "Auth:CmsUsername", "cms-webhook");
 var administratorUsername = ResolveUsername(builder.Configuration, "Auth:AdministratorUsername", "administrator");
 
-builder.Services.AddBasicAuthentication(authDbConnectionString);
+builder.Services.AddBasicAuthentication(authDbConnectionString, builder.Configuration);
 builder.Services.AddUsersInfrastructure(cmsDbConnectionString, builder.Configuration);
 builder.Services.AddScoped<IListEntitiesQueryHandler, ListEntitiesQueryHandler>();
 builder.Services.AddScoped<ISetEntityVisibilityCommandHandler, SetEntityVisibilityCommandHandler>();
