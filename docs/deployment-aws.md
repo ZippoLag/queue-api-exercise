@@ -110,6 +110,22 @@ DOMAIN="" bash scripts/deploy-aws.sh
 
 **In this project** the `deploy` job authenticates to AWS with the **OIDC role Terraform creates** for `GITHUB_ORG`, scoped to the single `GITHUB_REPO` (`queue-api-deploy-<env>`). It publishes both APIs and the `AuthDbInit` tool to the S3 artifact bucket, ships them to the node via SSM Run Command, and verifies the live deployment — health probes, the Users API UI shell, and the smoke flow.
 
+```mermaid
+sequenceDiagram
+    participant CI as CI deploy job
+    participant S3 as S3 artifact bucket
+    participant Node as EC2 node (SSM)
+    participant Live as Live endpoints
+
+    CI->>CI: dotnet publish (node RID)
+    CI->>S3: aws s3 sync artifacts
+    CI->>Node: SSM Run Command (ship, seed, restart)
+    Node->>Node: stage artifacts, seed credential store, restart cms-api + users-api
+    CI->>Live: GET /health (both APIs)
+    CI->>Live: GET / (Users API UI shell)
+    CI->>Live: smoke flow (ingest, list, disable/enable)
+```
+
 **Why the OIDC role needs the numeric IDs.** Since 2025 GitHub includes the owner and repo **numeric IDs** in the OIDC subject claim (`repo:owner@<id>/repo@<id>:ref:...`), so a trust policy matching only the legacy `repo:owner/repo:*` form no longer matches and the assume call fails with `Not authorized to perform sts:AssumeRoleWithWebIdentity`. The Terraform `iam` module therefore requires `github_org_id` / `github_repo_id` (from `gh api repos/<org>/<repo> --jq '{owner: .owner.id, repo: .id}'`) and matches both the ID-qualified and legacy patterns — see `infra/aws/modules/iam/main.tf`.
 
 **GitHub secrets and vars.** Set these after the first bootstrap run, reading the values from the bootstrap report / `terraform output` (Settings → Secrets and variables → Actions):

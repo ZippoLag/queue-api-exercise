@@ -27,6 +27,24 @@ Every push and pull request runs the **CI workflow** (`.github/workflows/ci.yml`
 
 The `build-and-test` job runs the per-module unit/integration suites and the coverage ratchet; the **`end-to-end` job** runs both APIs against one shared store twice — once through the in-process test host and once against the real deployment path. A push to `main` that passes the `build-and-test` and `end-to-end` jobs additionally runs the **`deploy` job** (see [Deployment](deployment-aws.md)).
 
+```mermaid
+flowchart TD
+    Push[Push / pull request] --> Build["build-and-test job"]
+    Build --> B["Build (warnings as errors)"]
+    B --> T["Test suite + coverage collection"]
+    T --> C{"Coverage ratchet passes?"}
+    C -- no --> Fail[CI red]
+    C -- yes --> V["openspec validate --all"]
+    Push --> E2E["end-to-end job (E2E host + smoke-e2e.sh)"]
+    Push --> TF["tf-validate job (Terraform fmt + validate)"]
+    V --> Gates[All gates green]
+    E2E --> Gates
+    TF --> Gates
+    Gates --> D{"Push to main?"}
+    D -- yes --> Deploy["deploy job"]
+    D -- no --> Done[CI green]
+```
+
 ## The coverage ratchet
 
 `scripts/check-coverage.sh` merges every test project's `coverage.cobertura.xml` into a **unique-line union** — each source line counts once, covered if *any* test project covers it (the honest "every line tested by someone" measure; per-report summing would double-count shared assemblies) — and fails when the rate drops below the committed threshold in `.config/coverage-min.txt` (**100.0%** — the measured rate is deterministic at 100.00%, so any uncovered line now fails CI). The number only ever moves **up**: to raise it deliberately, raise coverage, then edit the threshold file.

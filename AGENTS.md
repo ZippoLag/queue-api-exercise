@@ -26,6 +26,7 @@ You are a professional software developer working in a **.NET 9** codebase for a
 - **Naming**: context-appropriate spellings are intentional — `cms-webhook` is the reserved username (never renamed), `CmsWebhook` is the C# naming, `CMS Webhook` is the prose title. `docs/dsl_glossary.md` is the single place that reconciles them as synonyms.
 - **Voice**: neutral third person; reasoning is written as an explicit "why" next to the fact it justifies.
 - **Archived invariant**: never modify `docs/archived/initial_requirements.md`.
+- **Diagrams**: Mermaid is the only diagram syntax — fenced blocks with the `mermaid` info string, rendered natively by DocFX. Add a diagram only where it materially aids understanding of prose already on the page, place it directly under the prose it illustrates, and never let it introduce a fact absent from that prose (diagrams illustrate, they do not add).
 
 | File | Owns |
 |---|---|
