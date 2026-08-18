@@ -26,4 +26,4 @@
 ## 5. Documentation and final validation
 
 - [x] 5.1 Update `docs/architecture.md`, `docs/api-contract.md`, `docs/deployment-aws.md`, and `README.md` for the served UI (origin root, role-based views, anonymous shell, deploy verification)
-- [ ] 5.2 Final gates: `openspec validate --all`, `dotnet test QueueApi.slnx`, `bash scripts/check-coverage.sh`, and `openlore drift` all clean
+- [x] 5.2 Final gates: `openspec validate --all`, `dotnet test QueueApi.slnx`, `bash scripts/check-coverage.sh`, and `openlore drift` all clean
