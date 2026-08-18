@@ -2,6 +2,8 @@
   href: index.md
 - name: Architecture
   href: docs/architecture.md
+- name: Database schema
+  href: docs/database-schema.md
 - name: Configuration
   href: docs/configuration.md
 - name: Domain glossary

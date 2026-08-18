@@ -92,6 +92,7 @@ coverage ratchet, end-to-end smoke tests, spec discipline, and Terraform validat
 
 - **Hosted site**: <https://ZippoLag.github.io/queue-api-exercise/> — a DocFX-generated static site (API reference from the XML doc comments + the conceptual Markdown below), rebuilt on every push to `main`
 - [Architecture](docs/architecture.md) — system overview, design decisions, API and event-processing semantics
+- [Database schema](docs/database-schema.md) — canonical SQL reference for the two stores
 - [Domain glossary](docs/dsl_glossary.md) — domain specific language: terminology and nomenclature
 - [Development style](docs/development-style.md) — development approach, AI assistance, and code conventions
 - [Configuration](docs/configuration.md) — credentials, environment variables, TLS
