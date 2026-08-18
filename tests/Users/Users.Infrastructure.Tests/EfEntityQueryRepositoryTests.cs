@@ -72,6 +72,33 @@ public class EfEntityQueryRepositoryTests
         result.Should().BeEmpty();
     }
 
+    /// <summary>
+    /// Verifies the listing query leaves EF's change tracker empty.
+    /// </summary>
+    /// <remarks>
+    /// Source business rule: spec "Read and write paths use separated configurations" — the listing
+    /// runs on a read-only configuration, so the returned entities are not tracked and the request
+    /// cannot mutate the store.
+    /// </remarks>
+    [Fact]
+    public async Task ListPublishedAsync_LeavesChangeTrackerEmpty()
+    {
+        using var database = new UsersTestDatabase();
+        await using (var seedContext = database.CreateContext())
+        {
+            seedContext.Entities.Add(Entity("tracked-1", isPublished: true));
+            await seedContext.SaveChangesAsync();
+        }
+
+        await using var context = database.CreateContext();
+        var repository = new EfEntityQueryRepository(context);
+
+        var result = await repository.ListPublishedAsync(CancellationToken.None);
+
+        result.Should().HaveCount(1);
+        context.ChangeTracker.Entries().Should().BeEmpty();
+    }
+
     private static CmsEntity Entity(string id, bool isPublished, bool isVisibleByAdmin = true)
         => new()
         {
