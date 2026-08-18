@@ -21,8 +21,8 @@
 ## 4. Verification
 
 - [x] 4.1 Update `scripts/check-coverage.sh` path normalization: add the `Shared/QueueApi.Persistence/` prefix rule (mirroring the existing `Shared/QueueApi.Auth/` rule) plus the bare-filename mapping for the new extension class, so the ratchet's union aggregates the new project instead of failing loudly on an unseen prefix
-- [ ] 4.2 `dotnet build` — the whole solution compiles with the new project and references
-- [ ] 4.3 Full test run (unit + API integration + E2E) — all green on SQLite, proving no behavior change under the default
-- [ ] 4.4 `bash scripts/check-coverage.sh` — the 100% unique-line union holds (the new project's `sqlite` branch is covered by every boot; the fail-fast branch by task 1.4)
-- [ ] 4.5 `bash scripts/smoke-e2e.sh` — real-process vertical still passes
-- [ ] 4.6 `openspec validate --all`
+- [x] 4.2 `dotnet build` — the whole solution compiles with the new project and references
+- [x] 4.3 Full test run (unit + API integration + E2E) — all green on SQLite, proving no behavior change under the default
+- [x] 4.4 `bash scripts/check-coverage.sh` — the 100% unique-line union holds (the new project's `sqlite` branch is covered by every boot; the fail-fast branch by task 1.4)
+- [x] 4.5 `bash scripts/smoke-e2e.sh` — real-process vertical still passes
+- [x] 4.6 `openspec validate --all`
