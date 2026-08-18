@@ -12,10 +12,10 @@
 
 ## 3. Implement the UI
 
-- [ ] 3.1 Login page: collect username/password, set the Basic `Authorization` header on the same-origin `HttpClient`, surface `401`/`403` (including the `cms-webhook` rejection) as an inline error (design D3)
-- [ ] 3.2 Entity table from `GET /entities` showing id, visibility flag, version, update time, and payload as JSON (spec: Users API hosts a browser UI)
-- [ ] 3.3 Administrator toggle column (Disable/Enable per row) calling the existing enable/disable endpoints, re-fetching after `204`, inline error on `404`/`401`/`403`; regular user's table omits the column (design D5)
-- [ ] 3.4 Verify the app locally against the seeded store: administrator sees the toggle and toggles an entity, regular user has no toggle column, `cms-webhook` sign-in shows the descriptive error
+- [x] 3.1 Login page: collect username/password, set the Basic `Authorization` header on the same-origin `HttpClient`, surface `401`/`403` (including the `cms-webhook` rejection) as an inline error (design D3)
+- [x] 3.2 Entity table from `GET /entities` showing id, visibility flag, version, update time, and payload as JSON (spec: Users API hosts a browser UI)
+- [x] 3.3 Administrator toggle column (Disable/Enable per row) calling the existing enable/disable endpoints, re-fetching after `204`, inline error on `404`/`401`/`403`; regular user's table omits the column (design D5)
+- [x] 3.4 Verify the app locally against the seeded store: administrator sees the toggle and toggles an entity, regular user has no toggle column, `cms-webhook` sign-in shows the descriptive error
 
 ## 4. Deployment and pipeline
 
