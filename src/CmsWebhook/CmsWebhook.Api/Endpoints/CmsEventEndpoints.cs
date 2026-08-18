@@ -18,6 +18,17 @@ namespace CmsWebhook.Api.Endpoints;
 public static class CmsEventEndpoints
 {
     /// <summary>
+    /// The fixed-window rate-limit policy applied to the ingestion endpoint, registered in
+    /// <c>Program.cs</c> from <c>RateLimiting:PermitLimit</c>/<c>RateLimiting:WindowSeconds</c>.
+    /// </summary>
+    /// <remarks>
+    /// Only ingestion is rate limited: the anonymous discovery endpoints and the liveness probe stay
+    /// exempt, and the rate limiter runs before authentication so unauthenticated floods are rejected
+    /// with 429 without touching the credential store (spec: rate-limiting).
+    /// </remarks>
+    public const string IngestionRateLimitPolicy = "ingestion";
+
+    /// <summary>
     /// Maps the <c>POST /cms/events</c> ingestion endpoint.
     /// </summary>
     /// <param name="endpoints">The endpoint route builder to register the endpoint on.</param>
@@ -25,8 +36,9 @@ public static class CmsEventEndpoints
     public static IEndpointRouteBuilder MapCmsEventEndpoints(this IEndpointRouteBuilder endpoints)
     {
         endpoints.MapPost("/cms/events", IngestAsync)
+            .RequireRateLimiting(IngestionRateLimitPolicy)
             .WithSummary("Ingest CMS events")
-            .WithDescription("Accepts a single CMS event or a batch of events, records them in the outbox, and returns 201 when accepted.")
+            .WithDescription("Accepts a single CMS event or a batch of events, records them for processing, and returns 201 when accepted.")
             .WithTags("cms-events");
 
         return endpoints;
@@ -122,13 +134,15 @@ public static class CmsEventEndpoints
         {
             ["201"] = new OpenApiResponse
             {
-                Description = "The event(s) were validated and recorded in the outbox; a batch is all-or-nothing (an invalid element rejects the whole batch).",
+                Description = "The event(s) were validated and recorded for processing; a batch is all-or-nothing (an invalid element rejects the whole batch).",
             },
             ["400"] = new OpenApiResponse
             {
                 Description = "The body is not valid JSON, is neither an object nor an array of objects, or fails validation (unknown type, missing/invalid id, version or timestamp).",
             },
             ["401"] = new OpenApiResponse { Description = "Missing or invalid credentials." },
+            ["403"] = new OpenApiResponse { Description = "The caller is authenticated but not authorized on this API." },
+            ["429"] = new OpenApiResponse { Description = "The caller exceeded the allowed request rate; retry later." },
         };
     }
 

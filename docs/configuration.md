@@ -102,6 +102,17 @@ Credentials live in the SQLite credential store (`db/queue-auth.db` by default â
 
 The CMS event database (`db/queue-cms.db` by default, configurable via `ConnectionStrings:CmsDb`) is created automatically at startup â€” no init step is needed beyond the credential store above.
 
+## Rate limiting
+
+The CMS Webhook API's ingestion endpoint (`POST /cms/events`) is protected by a fixed-window rate limit using ASP.NET Core's built-in middleware. Two committed defaults in `src/CmsWebhook/CmsWebhook.Api/appsettings.json` bound it, overridable through the usual chain (e.g. environment variables):
+
+| Configuration key | Environment variable | Default | Meaning |
+|---|---|---|---|
+| `RateLimiting:PermitLimit` | `RateLimiting__PermitLimit` | `60` | Max requests per window. |
+| `RateLimiting:WindowSeconds` | `RateLimiting__WindowSeconds` | `60` | Window length in seconds. |
+
+Only the ingestion endpoint is rate limited; the anonymous `/health`, `/openapi/v1.json` and `/scalar/v1` endpoints are exempt so probes and discovery stay reachable. Excess requests are rejected with `429 Too Many Requests` (with `Retry-After`), enforced before authentication so an unauthenticated flood is rejected without touching the credential store. The window is per instance, not per client.
+
 ## TLS requirement
 
 Basic authentication transmits credentials as base64, which is *not* encryption. Production deployments of `CmsWebhook.Api` MUST serve over TLS (HTTPS); the plain-http profile in `launchSettings.json` is for local development only.

@@ -65,8 +65,9 @@ public static class EntityEndpoints
     /// <remarks>
     /// The handler returns <c>IResult</c>, so the response shape is declared explicitly; property names
     /// match the default System.Text.Json serialization (PascalCase) of <c>EntityListItem</c>. The
-    /// authorization layer adds 401 (missing credentials) and 403 (the reserved cms-webhook user), so the
-    /// generated default 200-only contract would lie about the failure modes.
+    /// authorization layer adds 401 (missing credentials) and 403 (valid credentials of a user not
+    /// authorized on this API), so the generated default 200-only contract would lie about the failure
+    /// modes.
     /// </remarks>
     /// <param name="operation">The generated OpenAPI operation to correct; mutated in place.</param>
     public static void ConfigureListOperation(OpenApiOperation operation)
@@ -131,7 +132,7 @@ public static class EntityEndpoints
                 },
             },
             ["401"] = new OpenApiResponse { Description = "Missing or invalid credentials." },
-            ["403"] = new OpenApiResponse { Description = "The caller is the reserved cms-webhook user, which is not authorized on this API." },
+            ["403"] = new OpenApiResponse { Description = "The caller is authenticated but not authorized on this API." },
         };
     }
 

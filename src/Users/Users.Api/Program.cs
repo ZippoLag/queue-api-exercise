@@ -75,7 +75,7 @@ builder.Services.AddOpenApi(options =>
         {
             Type = SecuritySchemeType.Http,
             Scheme = "basic",
-            Description = "HTTP Basic authentication against the shared credential store.",
+            Description = "HTTP Basic authentication with a valid username and password.",
             Reference = new OpenApiReference { Type = ReferenceType.SecurityScheme, Id = "basic" },
         };
         document.Components.SecuritySchemes["basic"] = basicScheme;

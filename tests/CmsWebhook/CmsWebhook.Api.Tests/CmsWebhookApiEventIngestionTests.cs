@@ -205,6 +205,109 @@ public class CmsWebhookApiEventIngestionTests
         (await context.Events.CountAsync()).Should().Be(0);
     }
 
+    /// <summary>
+    /// Verifies requests within the configured rate-limit window are processed normally.
+    /// </summary>
+    /// <remarks>
+    /// Source business rule: spec "Rate limiting", scenario "Request within the rate limit succeeds".
+    /// The permit limit is overridden to 2 via the test factory so the window is exercised without
+    /// sending the production default (60) requests.
+    /// </remarks>
+    [Fact]
+    public async Task PostEvents_WithinRateLimit_AllRequestsSucceed()
+    {
+        using var factory = new CmsWebhookApiFactory(rateLimitPermitLimit: 2);
+        using var client = factory.CreateClient();
+        client.DefaultRequestHeaders.Authorization = Basic(CmsWebhookApiFactory.CmsUsername, CmsWebhookApiFactory.CmsPassword);
+
+        var first = await client.PostAsync("/cms/events", Json(ValidPublish("entity-1")));
+        var second = await client.PostAsync("/cms/events", Json(ValidPublish("entity-2")));
+
+        first.StatusCode.Should().Be(HttpStatusCode.Created);
+        second.StatusCode.Should().Be(HttpStatusCode.Created);
+    }
+
+    /// <summary>
+    /// Verifies requests beyond the configured rate-limit window are rejected with 429 and the handler
+    /// does not execute (nothing is recorded).
+    /// </summary>
+    /// <remarks>
+    /// Source business rule: spec "Rate limiting", scenario "Excess requests are rejected with 429".
+    /// With a permit limit of 2, the third request must be rejected and no third event recorded.
+    /// </remarks>
+    [Fact]
+    public async Task PostEvents_ExceedingRateLimit_ReturnsTooManyRequestsAndDoesNotExecute()
+    {
+        using var factory = new CmsWebhookApiFactory(rateLimitPermitLimit: 2);
+        using var client = factory.CreateClient();
+        client.DefaultRequestHeaders.Authorization = Basic(CmsWebhookApiFactory.CmsUsername, CmsWebhookApiFactory.CmsPassword);
+
+        var first = await client.PostAsync("/cms/events", Json(ValidPublish("entity-1")));
+        var second = await client.PostAsync("/cms/events", Json(ValidPublish("entity-2")));
+        var third = await client.PostAsync("/cms/events", Json(ValidPublish("entity-3")));
+
+        first.StatusCode.Should().Be(HttpStatusCode.Created);
+        second.StatusCode.Should().Be(HttpStatusCode.Created);
+        third.StatusCode.Should().Be(HttpStatusCode.TooManyRequests);
+
+        using var context = factory.CreateCmsDbContext();
+        (await context.Events.CountAsync()).Should().Be(2);
+    }
+
+    /// <summary>
+    /// Verifies the anonymous discovery endpoints are not subject to the ingestion rate limit.
+    /// </summary>
+    /// <remarks>
+    /// Source business rule: spec "Rate limiting", scenario "Discovery endpoints are not rate limited".
+    /// The health and OpenAPI endpoints carry no rate-limit metadata, so more requests than the ingestion
+    /// permit limit must still succeed.
+    /// </remarks>
+    [Fact]
+    public async Task GetDiscoveryEndpoints_ExceedingIngestionLimit_AreNotRateLimited()
+    {
+        using var factory = new CmsWebhookApiFactory(rateLimitPermitLimit: 2);
+        using var client = factory.CreateClient();
+
+        var healthStatuses = new List<HttpStatusCode>();
+        for (var i = 0; i < 4; i++)
+        {
+            healthStatuses.Add((await client.GetAsync("/health")).StatusCode);
+        }
+
+        var openApiStatuses = new List<HttpStatusCode>();
+        for (var i = 0; i < 4; i++)
+        {
+            openApiStatuses.Add((await client.GetAsync("/openapi/v1.json")).StatusCode);
+        }
+
+        healthStatuses.Should().OnlyContain(status => status == HttpStatusCode.OK);
+        openApiStatuses.Should().OnlyContain(status => status == HttpStatusCode.OK);
+    }
+
+    /// <summary>
+    /// Verifies an unauthenticated flood is rejected by the rate limiter with 429 rather than reaching
+    /// authentication and returning 401.
+    /// </summary>
+    /// <remarks>
+    /// Source business rule: spec "Rate limiting", scenario "Unauthenticated flood is rate limited". The
+    /// rate limiter runs before authentication, so requests beyond the permit limit get 429 even without
+    /// valid credentials.
+    /// </remarks>
+    [Fact]
+    public async Task PostEvents_UnauthenticatedFlood_ReturnsTooManyRequestsRatherThanUnauthorized()
+    {
+        using var factory = new CmsWebhookApiFactory(rateLimitPermitLimit: 2);
+        using var client = factory.CreateClient();
+
+        var first = await client.PostAsync("/cms/events", Json(ValidPublish("entity-1")));
+        var second = await client.PostAsync("/cms/events", Json(ValidPublish("entity-2")));
+        var third = await client.PostAsync("/cms/events", Json(ValidPublish("entity-3")));
+
+        first.StatusCode.Should().Be(HttpStatusCode.Unauthorized);
+        second.StatusCode.Should().Be(HttpStatusCode.Unauthorized);
+        third.StatusCode.Should().Be(HttpStatusCode.TooManyRequests);
+    }
+
     private static async Task<CmsEntity> WaitForEntityAsync(CmsWebhookApiFactory factory, string entityId)
     {
         using var context = factory.CreateCmsDbContext();

@@ -4,6 +4,7 @@ using CmsWebhook.Api.Endpoints;
 using CmsWebhook.Application;
 using CmsWebhook.Infrastructure;
 using Microsoft.AspNetCore.Authorization;
+using Microsoft.AspNetCore.RateLimiting;
 using Microsoft.Data.Sqlite;
 using Microsoft.OpenApi.Models;
 using QueueApi.Auth;
@@ -14,10 +15,29 @@ var builder = WebApplication.CreateBuilder(args);
 var authDbConnectionString = ResolveConnectionString(builder.Configuration, builder.Environment.ContentRootPath, "AuthDb");
 var cmsDbConnectionString = ResolveConnectionString(builder.Configuration, builder.Environment.ContentRootPath, "CmsDb");
 var cmsUsername = ResolveCmsUsername(builder.Configuration);
+var rateLimitPermitLimit = builder.Configuration.GetValue("RateLimiting:PermitLimit", 60);
+var rateLimitWindowSeconds = builder.Configuration.GetValue("RateLimiting:WindowSeconds", 60);
 
 builder.Services.AddBasicAuthentication(authDbConnectionString);
 builder.Services.AddCmsWebhookInfrastructure(cmsDbConnectionString);
 builder.Services.AddScoped<IIngestCmsEventsCommandHandler, IngestCmsEventsCommandHandler>();
+
+// Standard ASP.NET Core rate limiting (no reimplementation, per the official docs): a named fixed-window
+// policy applied only to the ingestion endpoint, configured via RateLimiting:PermitLimit/WindowSeconds.
+// UseRateLimiter is placed before authentication below, so a flood of unauthenticated requests is
+// rejected with 429 without reaching the credential store (spec: rate-limiting, "Unauthenticated flood
+// is rate limited").
+builder.Services.AddRateLimiter(options =>
+{
+    // The middleware's default rejection status is 503; the contract (and this change's spec) requires
+    // 429 Too Many Requests, so it is set explicitly.
+    options.RejectionStatusCode = StatusCodes.Status429TooManyRequests;
+    options.AddFixedWindowLimiter(CmsEventEndpoints.IngestionRateLimitPolicy, limiter =>
+    {
+        limiter.PermitLimit = rateLimitPermitLimit;
+        limiter.Window = TimeSpan.FromSeconds(rateLimitWindowSeconds);
+    });
+});
 
 builder.Services.AddAuthorization(options =>
 {
@@ -61,7 +81,7 @@ builder.Services.AddOpenApi(options =>
         {
             Type = SecuritySchemeType.Http,
             Scheme = "basic",
-            Description = "HTTP Basic authentication against the shared credential store.",
+            Description = "HTTP Basic authentication with a valid username and password.",
             Reference = new OpenApiReference { Type = ReferenceType.SecurityScheme, Id = "basic" },
         };
         document.Components.SecuritySchemes["basic"] = basicScheme;
@@ -115,6 +135,7 @@ using (var scope = app.Services.CreateScope())
     await EnsureCmsDatabaseAsync(cmsDbContext, cmsDbConnectionString);
 }
 
+app.UseRateLimiter();
 app.UseAuthentication();
 app.UseAuthorization();
 

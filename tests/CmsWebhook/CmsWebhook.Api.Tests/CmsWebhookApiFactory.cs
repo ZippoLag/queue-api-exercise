@@ -32,6 +32,7 @@ public class CmsWebhookApiFactory : WebApplicationFactory<Program>
     private readonly string _authDbConnectionString;
     private readonly string _cmsDbConnectionString;
     private readonly IUserCredentialsProvider? _credentialsProviderOverride;
+    private readonly int? _rateLimitPermitLimit;
     private readonly string? _temporaryDatabasePath;
     private readonly string? _cmsTemporaryDatabasePath;
 
@@ -47,12 +48,18 @@ public class CmsWebhookApiFactory : WebApplicationFactory<Program>
     /// The SQLite connection string for the CMS event database; when <see langword="null"/> a temporary
     /// empty store is created and cleaned up with the factory.
     /// </param>
+    /// <param name="rateLimitPermitLimit">
+    /// Overrides <c>RateLimiting:PermitLimit</c> so rate-limit tests exercise a small window without
+    /// sending the production default volume of requests; <see langword="null"/> keeps the configured default.
+    /// </param>
     public CmsWebhookApiFactory(
         string? authDbConnectionString = null,
         IUserCredentialsProvider? credentialsProviderOverride = null,
-        string? cmsDbConnectionString = null)
+        string? cmsDbConnectionString = null,
+        int? rateLimitPermitLimit = null)
     {
         _credentialsProviderOverride = credentialsProviderOverride;
+        _rateLimitPermitLimit = rateLimitPermitLimit;
         if (authDbConnectionString is null)
         {
             _temporaryDatabasePath = CreateSeededTempDatabase(out var authConnectionString);
@@ -77,6 +84,14 @@ public class CmsWebhookApiFactory : WebApplicationFactory<Program>
     /// <inheritdoc/>
     protected override void ConfigureWebHost(IWebHostBuilder builder)
     {
+        if (_rateLimitPermitLimit is not null)
+        {
+            // UseSetting feeds the host configuration, which is merged into the app's configuration
+            // before Program.cs's top-level statements read RateLimiting:PermitLimit — a
+            // ConfigureAppConfiguration override would arrive too late for that pre-Build read.
+            builder.UseSetting("RateLimiting:PermitLimit", _rateLimitPermitLimit.Value.ToString());
+        }
+
         builder.ConfigureServices(services =>
         {
             // Replaces the DbContexts registered by the app so every request (and the startup fail-fast

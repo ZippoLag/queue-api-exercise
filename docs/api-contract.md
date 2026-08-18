@@ -46,9 +46,11 @@ Ingests events from the external CMS. The body is a **single event object or a b
 
 | Code | Meaning |
 |---|---|
-| `201 Created` | Accepted and recorded in the outbox for processing (a batch is all-or-nothing). |
+| `201 Created` | Accepted and recorded for processing (a batch is all-or-nothing). |
 | `400 Bad Request` | Not valid JSON; neither an object nor an array of objects; or a validation failure (unknown `type`, missing/invalid `id`, `version` or `timestamp`, non-object `payload`). |
 | `401 Unauthorized` | Missing or invalid credentials. |
+| `403 Forbidden` | The caller is authenticated but not authorized on this API. |
+| `429 Too Many Requests` | The caller exceeded the allowed request rate; retry later. |
 
 ## Users API — `GET /entities`
 
@@ -58,7 +60,7 @@ Lists the published entities visible to the caller. The administrator sees **all
 |---|---|
 | `200 OK` | The visible entities (an array; empty when none are visible). |
 | `401 Unauthorized` | Missing or invalid credentials. |
-| `403 Forbidden` | The caller is the reserved `cms-webhook` user, which is not authorized on this API. |
+| `403 Forbidden` | The caller is authenticated but not authorized on this API. |
 
 ## Users API — `POST /entities/{id}/disable` and `/enable`
 

@@ -114,6 +114,33 @@ public class UsersApiOpenApiTests
     }
 
     /// <summary>
+    /// Verifies the served contract discloses no implementation details: no reserved username, shared
+    /// credential store, or outbox phrasing, and the listing 403 uses generic authorization wording.
+    /// </summary>
+    /// <remarks>
+    /// Source business rule: spec "OpenAPI document", scenario "Contract does not disclose implementation
+    /// details" (change sanitize-openapi-docs). Asserting on the served document (not the source strings)
+    /// makes the test a contract guard against re-introduced leaks.
+    /// </remarks>
+    [Fact]
+    public async Task GetOpenApiDocument_DoesNotDiscloseImplementationDetails()
+    {
+        using var factory = new UsersApiFactory();
+        using var client = factory.CreateClient();
+
+        var body = await client.GetStringAsync("/openapi/v1.json");
+
+        body.Should().NotContain("cms-webhook");
+        body.Should().NotContain("shared credential store");
+        body.Should().NotContain("outbox");
+
+        using var document = JsonDocument.Parse(body);
+        var forbidden = document.RootElement.GetProperty("paths").GetProperty("/entities").GetProperty("get")
+            .GetProperty("responses").GetProperty("403").GetProperty("description").GetString();
+        forbidden.Should().Be("The caller is authenticated but not authorized on this API.");
+    }
+
+    /// <summary>
     /// Verifies the healthcheck is reachable anonymously and reports a healthy JSON body.
     /// </summary>
     /// <remarks>

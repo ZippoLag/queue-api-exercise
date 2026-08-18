@@ -101,7 +101,7 @@ public class CmsWebhookApiOpenApiTests
     /// <summary>
     /// Verifies the served contract is accurate: the ingestion request body declares both accepted forms
     /// (single object or batch array) with the event fields, the responses match the runtime status codes
-    /// (201/400/401, not a generated 200), and the Basic security scheme is declared.
+    /// (201/400/401/403/429, not a generated 200), and the Basic security scheme is declared.
     /// </summary>
     /// <remarks>
     /// Source business rule: spec "OpenAPI document" — the document stays in sync with the implemented
@@ -140,6 +140,12 @@ public class CmsWebhookApiOpenApiTests
         responses.TryGetProperty("201", out _).Should().BeTrue();
         responses.TryGetProperty("400", out _).Should().BeTrue();
         responses.TryGetProperty("401", out _).Should().BeTrue();
+        responses.TryGetProperty("403", out var forbidden).Should().BeTrue();
+        forbidden.GetProperty("description").GetString()
+            .Should().Be("The caller is authenticated but not authorized on this API.");
+        responses.TryGetProperty("429", out var tooMany).Should().BeTrue();
+        tooMany.GetProperty("description").GetString()
+            .Should().Be("The caller exceeded the allowed request rate; retry later.");
         responses.TryGetProperty("200", out _).Should().BeFalse();
 
         var basic = root.GetProperty("components").GetProperty("securitySchemes").GetProperty("basic");
@@ -148,6 +154,28 @@ public class CmsWebhookApiOpenApiTests
         post.GetProperty("security")[0].TryGetProperty("basic", out _).Should().BeTrue();
         root.GetProperty("paths").GetProperty("/health").GetProperty("get")
             .TryGetProperty("security", out _).Should().BeFalse();
+    }
+
+    /// <summary>
+    /// Verifies the served contract discloses no implementation details: no reserved username, shared
+    /// credential store, or outbox phrasing in the descriptions.
+    /// </summary>
+    /// <remarks>
+    /// Source business rule: spec "OpenAPI document", scenario "Contract does not disclose implementation
+    /// details" (change sanitize-openapi-docs). The document is public (served anonymously), so a
+    /// re-introduced internal phrase must fail this test.
+    /// </remarks>
+    [Fact]
+    public async Task GetOpenApiDocument_DoesNotDiscloseImplementationDetails()
+    {
+        using var factory = new CmsWebhookApiFactory();
+        using var client = factory.CreateClient();
+
+        var body = await client.GetStringAsync("/openapi/v1.json");
+
+        body.Should().NotContain("cms-webhook");
+        body.Should().NotContain("shared credential store");
+        body.Should().NotContain("outbox");
     }
 
     /// <summary>
