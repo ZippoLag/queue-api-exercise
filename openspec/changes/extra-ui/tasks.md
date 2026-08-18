@@ -1,7 +1,7 @@
 ## 1. Scaffold the WASM client
 
-- [ ] 1.1 Create `src/Users/Users.Web` as a `blazorwasm` client (Wasm-only, .NET 9, no PWA) and add it to `QueueApi.slnx`
-- [ ] 1.2 Add `[assembly: ExcludeFromCodeCoverage]` to the client assembly (design D6) and set `AdministratorUsername` (default `administrator`) in its `appsettings.json`
+- [x] 1.1 Create `src/Users/Users.Web` as a `blazorwasm` client (Wasm-only, .NET 9, no PWA) and add it to `QueueApi.slnx`
+- [x] 1.2 Add `[assembly: ExcludeFromCodeCoverage]` to the client assembly (design D6) and set `AdministratorUsername` (default `administrator`) in its `appsettings.json`
 - [ ] 1.3 Add the `ProjectReference` to `Users.Web` and the `Microsoft.AspNetCore.Components.WebAssembly.Server` package to `Users.Api` (design D1)
 
 ## 2. Serve the UI from the Users API
