@@ -5,9 +5,46 @@ In tandem with the KISS principle, the project is treated as if it will grow, so
 
 To get usable value as soon as possible, the visible API implementation comes first, with the inner domain and infrastructure (and possibly a simple UI) added later as needed.
 
+```mermaid
+flowchart TB
+    subgraph Adapters["Adapters (API layer)"]
+        Endpoints["Minimal API endpoints"]
+    end
+    subgraph Application["Application (CQRS)"]
+        Writes["Commands (writes)"]
+        Reads["Queries (reads)"]
+        Ports["Ports (interfaces)"]
+    end
+    subgraph Infrastructure["Infrastructure"]
+        Ef["EF Core repositories"]
+        Db[("SQLite stores")]
+    end
+    Domain["Domain (CmsEntity / CmsEvent)"]
+
+    Endpoints --> Writes
+    Endpoints --> Reads
+    Writes --> Ports
+    Reads --> Ports
+    Ports --> Ef
+    Ef --> Db
+    Writes --> Domain
+    Reads --> Domain
+    Ef --> Domain
+```
+
 ## System Overview
 
-![alt text](system_overview.png)
+```mermaid
+flowchart LR
+    CMS[External CMS] -->|POST /cms/events| Webhook["CMS Webhook API"]
+    Webhook -->|records Pending| EventLog[("cms_event_log")]
+    Worker["Outbox worker"] -->|sweeps Pending| EventLog
+    Worker -->|writes processed state| Entities[("cms_entities")]
+    Entities -->|GET /entities| Users["Users API"]
+    Users -->|disable / enable| Entities
+    Auth[("queue-auth.db (Users)")] --> Webhook
+    Auth --> Users
+```
 
 The Queue-API-Exercise system exposes 2 REST APIs: a webhook for handling CMS entity-related events and one to handle Users and Admin Users requests. Because the project may grow, the cost of an initial scaffolding big-bang with boilerplate is paid up front: the solution is a modular monolith, ready to be split whenever necessary.
 
@@ -105,6 +142,30 @@ When **CmsEvent**s are processed, a number of scenarios may arise depending on t
 
 #### Outbox processing model
 Events are processed **immediately but asynchronously** (design decision): after recording the **CmsEvent** with status `Pending`, the endpoint signals an in-process `CmsEventProcessorWorker` through a `System.Threading.Channels` fast-path; the worker also sweeps pending rows at startup and periodically, so events survive crashes and restarts. Each event is processed in its own transaction and advances to `Processed`, or to `Failed` with its error recorded (failed events are not retried automatically and are logged at Error; processing continues with the next event). Processing maintains the `cms_entities` store — the latest version, payload, published flag and the administrator-visibility flag the Users API reads. The upsert carries the stored visibility override forward, so a processed CMS event can never silently re-enable an entity the administrator disabled. The write side (ingest command + processing) lives in `CmsWebhook.Application`/`CmsWebhook.Infrastructure` following strict CQRS; the read side is the Users API module.
+
+```mermaid
+sequenceDiagram
+    participant CMS as External CMS
+    participant Webhook as CMS Webhook API
+    participant Store as queue-cms.db
+    participant Worker as Outbox worker
+
+    CMS->>Webhook: POST /cms/events
+    Webhook->>Store: record CmsEvent (Pending)
+    Webhook-->>CMS: 201 Created
+    Worker->>Store: sweep Pending events
+    Worker->>Store: upsert cms_entities
+    Worker->>Store: advance status to Processed (or Failed)
+```
+
+```mermaid
+stateDiagram-v2
+    [*] --> Pending: recorded
+    Pending --> Processed: applied successfully
+    Pending --> Failed: processing error
+    Processed --> [*]
+    Failed --> [*]
+```
 
 ### Healthcheck
 `GET /health` is an **anonymous liveness probe** returning `200 OK` with a JSON body (`{"status":"Healthy"}`) while the application is running, and `503 Service Unavailable` when unhealthy. It exists so load balancers and orchestrators can probe the API without credentials, and is the first endpoint exempt from the fallback authorization policy. It is implemented with the built-in `AddHealthChecks()` + `MapHealthChecks("/health")` and a small JSON response writer — liveness only, no deep or database checks (the app already fails fast at startup when either store is unreachable).
