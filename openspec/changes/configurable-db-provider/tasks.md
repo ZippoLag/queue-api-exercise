@@ -2,7 +2,7 @@
 
 - [x] 1.1 Create `src/Shared/QueueApi.Persistence` (net9.0 class library referencing the solution's existing EF Core version, XML docs enabled) with the `UseConfiguredProvider(DbContextOptionsBuilder, string provider, string connectionString)` extension: a case-insensitive provider switch with the single `sqlite` branch calling `UseSqlite`, and a descriptive fail-fast error naming the supported providers when the value is unknown
 - [x] 1.2 Add the `QueueApi.Persistence` project reference to `CmsWebhook.Infrastructure`, `Users.Infrastructure`, `QueueApi.Auth`, and `tools/AuthDbInit`
-- [ ] 1.3 Create `tests/Shared/QueueApi.Persistence.Tests` mirroring the `QueueApi.Auth.Tests` convention (xUnit, Moq, FluentAssertions, coverlet.collector, XML docs) referencing the new project, and add it to `QueueApi.slnx`
+- [x] 1.3 Create `tests/Shared/QueueApi.Persistence.Tests` mirroring the `QueueApi.Auth.Tests` convention (xUnit, Moq, FluentAssertions, coverlet.collector, XML docs) referencing the new project, and add it to `QueueApi.slnx`
 - [x] 1.4 Write the fail-fast unit test in the new test project: `UseConfiguredProvider` with an unknown provider value (e.g. `postgres`) throws with a descriptive error naming the supported providers — this is the one branch no boot-time integration test exercises, and the 100% unique-line ratchet requires it covered
 
 ## 2. Wire the registration sites
