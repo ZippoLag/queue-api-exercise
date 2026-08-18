@@ -2,6 +2,8 @@
 
 - [ ] 1.1 Create `src/Shared/QueueApi.Persistence` (net9.0 class library referencing the solution's existing EF Core version, XML docs enabled) with the `UseConfiguredProvider(DbContextOptionsBuilder, string provider, string connectionString)` extension: a case-insensitive provider switch with the single `sqlite` branch calling `UseSqlite`, and a descriptive fail-fast error naming the supported providers when the value is unknown
 - [ ] 1.2 Add the `QueueApi.Persistence` project reference to `CmsWebhook.Infrastructure`, `Users.Infrastructure`, `QueueApi.Auth`, and `tools/AuthDbInit`
+- [ ] 1.3 Create `tests/Shared/QueueApi.Persistence.Tests` mirroring the `QueueApi.Auth.Tests` convention (xUnit, Moq, FluentAssertions, coverlet.collector, XML docs) referencing the new project, and add it to `QueueApi.slnx`
+- [ ] 1.4 Write the fail-fast unit test in the new test project: `UseConfiguredProvider` with an unknown provider value (e.g. `postgres`) throws with a descriptive error naming the supported providers — this is the one branch no boot-time integration test exercises, and the 100% unique-line ratchet requires it covered
 
 ## 2. Wire the registration sites
 
@@ -18,7 +20,9 @@
 
 ## 4. Verification
 
-- [ ] 4.1 `dotnet build` — the whole solution compiles with the new project and references
-- [ ] 4.2 Full test run (unit + API integration + E2E) — all green on SQLite, proving no behavior change under the default
-- [ ] 4.3 `bash scripts/smoke-e2e.sh` — real-process vertical still passes
-- [ ] 4.4 `openspec validate --all`
+- [ ] 4.1 Update `scripts/check-coverage.sh` path normalization: add the `Shared/QueueApi.Persistence/` prefix rule (mirroring the existing `Shared/QueueApi.Auth/` rule) plus the bare-filename mapping for the new extension class, so the ratchet's union aggregates the new project instead of failing loudly on an unseen prefix
+- [ ] 4.2 `dotnet build` — the whole solution compiles with the new project and references
+- [ ] 4.3 Full test run (unit + API integration + E2E) — all green on SQLite, proving no behavior change under the default
+- [ ] 4.4 `bash scripts/check-coverage.sh` — the 100% unique-line union holds (the new project's `sqlite` branch is covered by every boot; the fail-fast branch by task 1.4)
+- [ ] 4.5 `bash scripts/smoke-e2e.sh` — real-process vertical still passes
+- [ ] 4.6 `openspec validate --all`

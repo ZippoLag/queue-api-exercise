@@ -30,9 +30,11 @@ SQLite keeps its current `EnsureCreated` startup schema creation. A real provide
 
 The deployed node stays SQLite, so `scripts/deploy-aws.sh` and the systemd environment are untouched. `docs/deployment-aws.md` gains the `Db__Provider` environment-variable form in its configuration table (documented, defaulting to sqlite, no value required). This is the "update aws deployment if need be" from the request — the answer is: documentation only.
 
-### D5 — Test plumbing stays SQLite and is untouched
+### D5 — Test plumbing stays SQLite and is untouched; a dedicated test project covers the fail-fast branch
 
-The `WebApplicationFactory` hosts, E2E hosts, and test database builders construct `DbContextOptionsBuilder` directly with `UseSqlite` — they are not config-driven and must keep using in-memory/temp SQLite regardless of any runtime provider. No test changes; the existing suites double as the no-behavior-change proof.
+The `WebApplicationFactory` hosts, E2E hosts, and test database builders construct `DbContextOptionsBuilder` directly with `UseSqlite` — they are not config-driven and must keep using in-memory/temp SQLite regardless of any runtime provider. No existing suite changes; they double as the no-behavior-change proof.
+
+One addition is required by the 100% unique-line coverage ratchet: a new `tests/Shared/QueueApi.Persistence.Tests` project (mirroring the `QueueApi.Auth.Tests` convention) unit-tests the switch. The `sqlite` branch is covered transitively by every boot; the fail-fast throw branch (unknown provider) is hit by no integration test, so it needs a dedicated unit test or the union drops below 100%. The same ratchet forces a `scripts/check-coverage.sh` normalization-map update: the script fails loudly on unseen path prefixes (its documented behavior), so the new project's `Shared/QueueApi.Persistence/` prefix and extension-class bare filename must be mapped exactly like `Shared/QueueApi.Auth/`.
 
 ### D6 — The `AuthDbInit` tool routes through the same switch
 
@@ -43,6 +45,8 @@ The tool pins the default provider (`sqlite`) via the shared helper rather than 
 | File | Change |
 |---|---|
 | `src/Shared/QueueApi.Persistence/` (new) | Provider-switch extension + project file |
+| `tests/Shared/QueueApi.Persistence.Tests/` (new) | Fail-fast branch unit test, added to `QueueApi.slnx` |
+| `scripts/check-coverage.sh` | Path-normalization map gains `Shared/QueueApi.Persistence/` + bare-filename rule |
 | `src/CmsWebhook/CmsWebhook.Infrastructure/CmsServiceCollectionExtensions.cs` | Read `Db:Provider`, use helper |
 | `src/Users/Users.Infrastructure/UsersServiceCollectionExtensions.cs` | Read `Db:Provider`, use helper |
 | `src/Shared/QueueApi.Auth/BasicAuthenticationServiceCollectionExtensions.cs` | Read `Db:Provider`, use helper |
@@ -60,5 +64,6 @@ The tool pins the default provider (`sqlite`) via the shared helper rather than 
 
 1. `dotnet build` — all projects compile with the new reference graph.
 2. Full test run (unit + integration + E2E) — all green on sqlite, proving no behavior change.
-3. `bash scripts/smoke-e2e.sh` — real-process vertical still passes.
-4. `openspec validate --all`.
+3. `bash scripts/check-coverage.sh` — the 100% unique-line union holds (new-project lines aggregated via the updated normalization map; fail-fast branch covered by the new unit test).
+4. `bash scripts/smoke-e2e.sh` — real-process vertical still passes.
+5. `openspec validate --all`.
