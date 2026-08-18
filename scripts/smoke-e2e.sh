@@ -68,12 +68,14 @@ start_api() {
   local executable="$1" port="$2"
   local app_dir
   app_dir="$(cd "$(dirname "$executable")" && pwd)"
-  (cd "$app_dir" && \
-    ASPNETCORE_ENVIRONMENT=Production \
-    ASPNETCORE_URLS="http://127.0.0.1:$port" \
-    ConnectionStrings__AuthDb="Data Source=$AUTH_DB_PATH" \
-    ConnectionStrings__CmsDb="Data Source=$CMS_DB_PATH;Default Timeout=30" \
-      "$executable" >"$WORK_DIR/$(basename "$executable").log" 2>&1) &
+  # The cd is scoped to the command-substitution subshell start_api runs in, so the caller's cwd is
+  # unchanged; the background executable inherits it as its working directory.
+  cd "$app_dir"
+  ASPNETCORE_ENVIRONMENT=Production \
+  ASPNETCORE_URLS="http://127.0.0.1:$port" \
+  ConnectionStrings__AuthDb="Data Source=$AUTH_DB_PATH" \
+  ConnectionStrings__CmsDb="Data Source=$CMS_DB_PATH;Default Timeout=30" \
+    "$executable" >"$WORK_DIR/$(basename "$executable").log" 2>&1 &
   local pid=$!
 
   local deadline=$((SECONDS + 30))
