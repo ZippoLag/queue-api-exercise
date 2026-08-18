@@ -146,6 +146,144 @@ public class EndToEndSmokeTests
     }
 
     /// <summary>
+    /// Verifies an ingested event whose timestamp is not an ISO 8601 / RFC 3339 date-time is rejected
+    /// with <c>400</c> and its unique entity id never materializes on the Users API.
+    /// </summary>
+    /// <remarks>
+    /// Source business rule: spec "Validates and sanitizes events", scenario "Invalid timestamp" — the
+    /// date-only form is rejected; the unique id proves nothing was recorded (a rejected request never
+    /// enters the outbox, so absence is immediate and deterministic).
+    /// </remarks>
+    [Fact]
+    public async Task IngestWithNonRfc3339Timestamp_IsRejectedAndNeverListed()
+    {
+        using var environment = new E2EEnvironment();
+        using var cmsClient = environment.CreateCmsApiClient(E2EEnvironment.CmsUsername, E2EEnvironment.CmsPassword);
+
+        var ingest = await cmsClient.PostAsync("/cms/events", Json(
+            """{"type":"publish","id":"reject-ts-1","payload":{},"version":1,"timestamp":"2024-01-01"}"""));
+
+        ingest.StatusCode.Should().Be(HttpStatusCode.BadRequest);
+
+        using var regularClient = environment.CreateUsersApiClient(E2EEnvironment.RegularUsername, E2EEnvironment.RegularPassword);
+        var ids = await ReadEntityIdsAsync(await regularClient.GetAsync("/entities"));
+        ids.Should().NotContain("reject-ts-1");
+    }
+
+    /// <summary>
+    /// Verifies an ingested event whose payload is not a JSON object is rejected with <c>400</c> and its
+    /// unique entity id never materializes on the Users API.
+    /// </summary>
+    /// <remarks>
+    /// Source business rule: spec "Validates and sanitizes events", scenario "Payload is not a JSON
+    /// object" — only key/value objects are accepted; the unique id proves nothing was recorded.
+    /// </remarks>
+    [Fact]
+    public async Task IngestWithNonObjectPayload_IsRejectedAndNeverListed()
+    {
+        using var environment = new E2EEnvironment();
+        using var cmsClient = environment.CreateCmsApiClient(E2EEnvironment.CmsUsername, E2EEnvironment.CmsPassword);
+
+        var ingest = await cmsClient.PostAsync("/cms/events", Json(
+            """{"type":"publish","id":"reject-payload-1","payload":[],"version":1,"timestamp":"2024-01-01T00:00:00Z"}"""));
+
+        ingest.StatusCode.Should().Be(HttpStatusCode.BadRequest);
+
+        using var regularClient = environment.CreateUsersApiClient(E2EEnvironment.RegularUsername, E2EEnvironment.RegularPassword);
+        var ids = await ReadEntityIdsAsync(await regularClient.GetAsync("/entities"));
+        ids.Should().NotContain("reject-payload-1");
+    }
+
+    /// <summary>
+    /// Verifies anonymous requests to protected endpoints of both APIs are rejected with <c>401</c>.
+    /// </summary>
+    /// <remarks>
+    /// Source business rule: spec "All endpoints require authentication" (CMS Webhook API) and "Users API
+    /// authentication and roles", scenario "Request without credentials" — the smoke vertical asserts the
+    /// true no-credentials case, without any <c>Authorization</c> header.
+    /// </remarks>
+    [Fact]
+    public async Task AnonymousRequestsToProtectedEndpoints_ReturnUnauthorized()
+    {
+        using var environment = new E2EEnvironment();
+
+        var cmsPost = await environment.CmsClient.PostAsync("/cms/events", Json(Publish("entity-x")));
+        cmsPost.StatusCode.Should().Be(HttpStatusCode.Unauthorized);
+
+        var usersGet = await environment.UsersClient.GetAsync("/entities");
+        usersGet.StatusCode.Should().Be(HttpStatusCode.Unauthorized);
+    }
+
+    /// <summary>
+    /// Verifies an empty or whitespace-only route id is rejected with <c>400</c> on both enable/disable
+    /// commands.
+    /// </summary>
+    /// <remarks>
+    /// Source business rule: spec "Administrator enables and disables entity visibility", scenario
+    /// "Empty or whitespace-only id" — the id is sanitized like the webhook's; an only-whitespace id is a
+    /// client error, not an unknown entity.
+    /// </remarks>
+    [Theory]
+    [InlineData("disable")]
+    [InlineData("enable")]
+    public async Task EmptyOrWhitespaceId_ReturnsBadRequest(string command)
+    {
+        using var environment = new E2EEnvironment();
+        using var adminClient = environment.CreateUsersApiClient(E2EEnvironment.AdministratorUsername, E2EEnvironment.AdministratorPassword);
+
+        var response = await adminClient.PostAsync($"/entities/%20%20/{command}", null);
+
+        response.StatusCode.Should().Be(HttpStatusCode.BadRequest);
+    }
+
+    /// <summary>
+    /// Verifies a route id carrying surrounding whitespace resolves to the stored entity: the trimmed
+    /// disable applies and the entity disappears from regular users' listings.
+    /// </summary>
+    /// <remarks>
+    /// Source business rule: spec "Administrator enables and disables entity visibility", scenario "Id is
+    /// trimmed before lookup" — the padded-id entity is ingested through the CMS path, so the trim is
+    /// proven end to end over the shared store.
+    /// </remarks>
+    [Fact]
+    public async Task PaddedId_IsTrimmedBeforeLookup()
+    {
+        using var environment = new E2EEnvironment();
+        using var cmsClient = environment.CreateCmsApiClient(E2EEnvironment.CmsUsername, E2EEnvironment.CmsPassword);
+        (await cmsClient.PostAsync("/cms/events", Json(Publish("padded-1")))).StatusCode.Should().Be(HttpStatusCode.Created);
+
+        using var regularClient = environment.CreateUsersApiClient(E2EEnvironment.RegularUsername, E2EEnvironment.RegularPassword);
+        await WaitForEntitiesAsync(regularClient, "padded-1");
+
+        using var adminClient = environment.CreateUsersApiClient(E2EEnvironment.AdministratorUsername, E2EEnvironment.AdministratorPassword);
+        var disable = await adminClient.PostAsync("/entities/%20padded-1%20/disable", null);
+        disable.StatusCode.Should().Be(HttpStatusCode.NoContent);
+
+        var ids = await ReadEntityIdsAsync(await regularClient.GetAsync("/entities"));
+        ids.Should().NotContain("padded-1");
+    }
+
+    /// <summary>
+    /// Verifies an unknown entity id yields <c>404</c> on both enable/disable commands.
+    /// </summary>
+    /// <remarks>
+    /// Source business rule: spec "Administrator enables and disables entity visibility", scenario
+    /// "Unknown entity id".
+    /// </remarks>
+    [Theory]
+    [InlineData("disable")]
+    [InlineData("enable")]
+    public async Task UnknownId_ReturnsNotFound(string command)
+    {
+        using var environment = new E2EEnvironment();
+        using var adminClient = environment.CreateUsersApiClient(E2EEnvironment.AdministratorUsername, E2EEnvironment.AdministratorPassword);
+
+        var response = await adminClient.PostAsync($"/entities/no-such-entity/{command}", null);
+
+        response.StatusCode.Should().Be(HttpStatusCode.NotFound);
+    }
+
+    /// <summary>
     /// Polls the Users API listing until every expected entity id is present, proving the outbox worker
     /// processed the ingested events into the shared store.
     /// </summary>

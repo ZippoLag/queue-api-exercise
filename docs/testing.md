@@ -55,6 +55,19 @@ The `end-to-end` CI job validates that both APIs interoperate over **one shared 
 1. **Test host** (`tests/E2E/QueueApi.E2E.Tests`) — xunit scenarios via `WebApplicationFactory`, running the CMS Webhook and Users APIs in-process against one seeded credential store and one CMS database. Scenarios cover the full vertical: CMS event ingestion → outbox processing → the regular-user listing → the administrator's disable/enable → `cms-webhook` rejected on the Users API → a CMS update event not resetting the administrator's disable.
 2. **Real processes** (`scripts/smoke-e2e.sh`) — the same vertical against the deployment path: `dotnet publish -c Release` both APIs, seed a real credential store through `scripts/init-db.sh`, start both executables as real processes over real SQLite files (Production environment, stores supplied via environment variables), and drive the flow over real HTTP with curl status assertions. A `trap` kills the processes and removes the temp stores on every exit path.
 
+**Vertical coverage.** Both layers assert the acceptance path — ingest → outbox processing → listing → administrator visibility control — and the deterministic rejection contract of both APIs: `401` for a request without an `Authorization` header, `400` for a non-RFC 3339 timestamp, `400` for a non-object payload, `400` for an empty or whitespace-only route id, `403` for the reserved `cms-webhook` user on the Users API, and `404` for an unknown entity id. Rejected ingestions are proven to record nothing: their unique entity id never appears on the Users API listing. The status-code × layer inventory below is the single reviewable source of truth for what the smoke vertical asserts — a contract change that adds or alters a status code must update this table and the matching layer(s) in the same change (spec: "End-to-end smoke gates cover the documented contract").
+
+| Status | In-process E2E | Real-process smoke |
+|---|---|---|
+| `200` (health, listing) | ✓ | ✓ |
+| `201` (ingest accepted) | ✓ | ✓ |
+| `204` (enable/disable, incl. trimmed padded id) | ✓ | ✓ |
+| `400` (invalid timestamp / non-object payload / whitespace-only id) | ✓ | ✓ |
+| `401` (request without credentials) | ✓ | ✓ |
+| `403` (reserved `cms-webhook` on the Users API) | ✓ | ✓ |
+| `404` (unknown entity id) | ✓ | ✓ |
+| `429` (rate limit) | ✗ — API integration suite only (overridden permit limit) | ✗ — timing-sensitive, excluded by design |
+
 **Conventions:**
 
 - The E2E project lives outside `QueueApi.slnx` on purpose; the slnx carries a comment pointing here.

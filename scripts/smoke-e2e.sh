@@ -6,6 +6,8 @@
 #
 #   ingest (cms-webhook -> CMS Webhook API) -> outbox processing -> list (regular-user -> Users API)
 #   -> disable/enable (administrator -> Users API) -> cms-webhook rejected on the Users API
+#   -> the rejection contract: 401 anonymous, 400 invalid timestamp / non-object payload /
+#     whitespace-only id, 204 padded-id trim, 404 unknown id (each rejected id proven never listed)
 #
 # Usage: scripts/smoke-e2e.sh
 #   CMS_PORT / USERS_PORT   ports to bind (defaults 5264/5265)
@@ -83,19 +85,35 @@ start_api() {
   fail "Timed out waiting for $executable to become healthy on port $port."
 }
 
-# Asserts the HTTP status of a request.
+# Asserts the HTTP status of a request. An empty user sends NO Authorization header at all, so the
+# anonymous 401 assertion proves the true no-credentials case (design D5 of extend-e2e-smoke-contract).
 expect_status() {
   local method="$1" url="$2" expected="$3" user="$4" password="$5" body="${6:-}"
   local actual
+  local auth_args=()
+  if [ -n "$user" ]; then auth_args=(-u "$user:$password"); fi
   if [ -n "$body" ]; then
     actual=$(curl -sS -o "$WORK_DIR/last-body.json" -w "%{http_code}" \
-      -u "$user:$password" -X "$method" -H "Content-Type: application/json" -d "$body" "$url") \
+      "${auth_args[@]}" -X "$method" -H "Content-Type: application/json" -d "$body" "$url") \
       || fail "Request failed: $method $url"
   else
-    actual=$(curl -sS -o /dev/null -w "%{http_code}" -u "$user:$password" -X "$method" "$url") \
+    actual=$(curl -sS -o /dev/null -w "%{http_code}" "${auth_args[@]}" -X "$method" "$url") \
       || fail "Request failed: $method $url"
   fi
   [ "$actual" = "$expected" ] || fail "Expected HTTP $expected for $method $url, got $actual."
+}
+
+# Asserts a rejected entity id never appears in the regular-user listing. Single-shot by design: a
+# rejected request never enters the pipeline, so absence is immediate and polling would only add
+# flakiness (design D2 of extend-e2e-smoke-contract).
+assert_absent() {
+  local entity_id="$1"
+  local body
+  body=$(curl -sS -u "$REGULAR_USER:$REGULAR_PASSWORD" "$USERS_BASE_URL/entities") \
+    || fail "Regular-user listing request failed."
+  if echo "$body" | grep -q "\"id\":\"$entity_id\""; then
+    fail "Rejected entity '$entity_id' unexpectedly appears in the listing."
+  fi
 }
 
 # Polls the regular-user listing until the entity is present (1) or absent (0).
@@ -180,4 +198,29 @@ echo "[Information] Anonymous OpenAPI contract describes the entity endpoints"
 curl -fsS "$USERS_BASE_URL/openapi/v1.json" | grep -q '"/entities/{id}/disable"' \
   || fail "The Users API OpenAPI contract does not describe /entities/{id}/disable."
 
-echo "[Information] Smoke test passed: both APIs interoperated over the real seeded stores."
+echo "[Information] Rejection contract: anonymous requests return 401 without any Authorization header"
+expect_status GET "$USERS_BASE_URL/entities" 401 "" ""
+expect_status POST "$CMS_BASE_URL/cms/events" 401 "" "" \
+  '{"type":"publish","id":"entity-x","payload":{},"version":1,"timestamp":"2024-01-01T00:00:00Z"}'
+
+echo "[Information] Rejection contract: non-RFC 3339 timestamps and non-object payloads return 400 and record nothing"
+expect_status POST "$CMS_BASE_URL/cms/events" 400 "$CMS_USER" "$CMS_PASSWORD" \
+  '{"type":"publish","id":"smoke-reject-ts-1","payload":{},"version":1,"timestamp":"2024-01-01"}'
+assert_absent "smoke-reject-ts-1"
+expect_status POST "$CMS_BASE_URL/cms/events" 400 "$CMS_USER" "$CMS_PASSWORD" \
+  '{"type":"publish","id":"smoke-reject-payload-1","payload":[],"version":1,"timestamp":"2024-01-01T00:00:00Z"}'
+assert_absent "smoke-reject-payload-1"
+
+echo "[Information] Rejection contract: whitespace-only id returns 400, padded id is trimmed, unknown id returns 404"
+expect_status POST "$USERS_BASE_URL/entities/%20%20/disable" 400 "$ADMIN_USER" "$ADMIN_PASSWORD"
+
+# The padded-id check ingests its own entity (design D2) so the acceptance flow's entity-1 state is untouched.
+expect_status POST "$CMS_BASE_URL/cms/events" 201 "$CMS_USER" "$CMS_PASSWORD" \
+  '{"type":"publish","id":"smoke-padded-1","payload":{"title":"padded"},"version":1,"timestamp":"2024-01-01T00:00:00Z"}'
+wait_for_entity "smoke-padded-1" 1
+expect_status POST "$USERS_BASE_URL/entities/%20smoke-padded-1%20/disable" 204 "$ADMIN_USER" "$ADMIN_PASSWORD"
+wait_for_entity "smoke-padded-1" 0
+
+expect_status POST "$USERS_BASE_URL/entities/no-such-entity/disable" 404 "$ADMIN_USER" "$ADMIN_PASSWORD"
+
+echo "[Information] Smoke test passed: both APIs interoperated over the real seeded stores and the rejection contract holds."
