@@ -3,7 +3,7 @@
 # Deploys the two APIs to the AWS node: publishes (Release), uploads the artifacts to
 # the S3 bucket, ships them to the node via SSM Run Command (no SSH port), seeds the
 # credential store idempotently, restarts the services in order (cms-api first), and
-# verifies the live deployment (health probes + the smoke flow).
+# verifies the live deployment (health probes + the UI shell + the smoke flow).
 #
 # Usage:
 #   scripts/deploy-aws.sh [--skip-publish] [--rollback]
@@ -209,6 +209,12 @@ wait_for_health() {
   fail "Timed out waiting for $name /health on $url."
 }
 
+verify_ui_shell() {
+  log "Checking the Users API serves the UI shell at its origin root"
+  curl -fsS "${CURL_EXTRA[@]}" "$USERS_URL/" | grep -q "_framework/blazor.webassembly.js" \
+    || fail "The users host root did not serve the Blazor UI shell."
+}
+
 expect_status() {
   local method="$1" url="$2" expected="$3" user="$4" password="$5" body="${6:-}"
   local actual
@@ -241,6 +247,7 @@ verify_live() {
   api_urls
   wait_for_health "$CMS_URL" "CMS Webhook API"
   wait_for_health "$USERS_URL" "Users API"
+  verify_ui_shell
 
   local cms_pw admin_pw regular_pw
   read_ssm() { aws ssm get-parameter --region "$REGION" --name "$1" --with-decryption --query Parameter.Value --output text; }
@@ -258,7 +265,7 @@ verify_live() {
   expect_status POST "$USERS_URL/entities/deploy-verify-1/enable" 204 "administrator" "$admin_pw"
   wait_for_entity "deploy-verify-1" 1 "regular-user" "$regular_pw"
 
-  log "Live verification passed: both /health endpoints healthy and the smoke flow succeeded."
+  log "Live verification passed: both /health endpoints healthy, the UI shell is served, and the smoke flow succeeded."
 }
 
 # --- main -------------------------------------------------------------------------

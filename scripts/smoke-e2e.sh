@@ -6,6 +6,7 @@
 #
 #   ingest (cms-webhook -> CMS Webhook API) -> outbox processing -> list (regular-user -> Users API)
 #   -> disable/enable (administrator -> Users API) -> cms-webhook rejected on the Users API
+#   -> the UI shell served at the Users API origin root
 #   -> the rejection contract: 401 anonymous, 400 invalid timestamp / non-object payload /
 #     whitespace-only id, 204 padded-id trim, 404 unknown id (each rejected id proven never listed)
 #
@@ -169,6 +170,10 @@ USERS_PID=$(start_api "$PUBLISH_DIR/users/Users.Api" "$USERS_PORT")
 echo "[Information] Anonymous health probes"
 curl -fsS "$CMS_BASE_URL/health" >/dev/null || fail "CMS /health did not return 200."
 curl -fsS "$USERS_BASE_URL/health" >/dev/null || fail "Users /health did not return 200."
+
+echo "[Information] The Users API serves the browser UI shell at its origin root"
+curl -fsS "$USERS_BASE_URL/" | grep -q "_framework/blazor.webassembly.js" \
+  || fail "The Users API origin root did not serve the Blazor UI shell."
 
 echo "[Information] Ingesting a publish event through the CMS Webhook API"
 expect_status POST "$CMS_BASE_URL/cms/events" 201 "$CMS_USER" "$CMS_PASSWORD" \

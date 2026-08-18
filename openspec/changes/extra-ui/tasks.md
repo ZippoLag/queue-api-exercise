@@ -19,9 +19,9 @@
 
 ## 4. Deployment and pipeline
 
-- [ ] 4.1 Extend `scripts/deploy-aws.sh`: the Users API publish must emit the client (project-reference publish) and the live verification gains a check that the users host root serves the UI shell
-- [ ] 4.2 Add the UI-shell check to `scripts/smoke-e2e.sh`
-- [ ] 4.3 Do a local `dotnet publish` of `Users.Api` for `linux-arm64` and confirm the UI shell and `_framework` files are in the output
+- [x] 4.1 Extend `scripts/deploy-aws.sh`: the Users API publish must emit the client (project-reference publish) and the live verification gains a check that the users host root serves the UI shell
+- [x] 4.2 Add the UI-shell check to `scripts/smoke-e2e.sh`
+- [x] 4.3 Do a local `dotnet publish` of `Users.Api` for `linux-arm64` and confirm the UI shell and `_framework` files are in the output
 
 ## 5. Documentation and final validation
 
