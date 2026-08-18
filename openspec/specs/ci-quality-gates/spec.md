@@ -28,7 +28,7 @@ The build SHALL treat all Roslyn compiler and analyzer warnings as errors (`Trea
 
 ### Requirement: Coverage never regresses below the committed threshold
 
-The coverage gate SHALL measure unique source lines — each line counted once, covered if any test project covers it (union across all cobertura reports, paths normalized) — and SHALL fail when the rate drops below the committed threshold in `.config/coverage-min.txt`. The threshold is a ratchet that only rises; it is currently `100.0`, so any line added without a test fails the gate.
+The coverage gate SHALL measure unique source lines — each line counted once, covered if any test project covers it (union across all cobertura reports, paths normalized) — and SHALL fail when the rate drops below the committed threshold in `.config/coverage-min.txt`. The threshold is a ratchet that only rises; it is currently `100.0`, so any line added without a test fails the gate. The path-normalization map in `scripts/check-coverage.sh` SHALL cover every instrumented source path — including shared projects such as `QueueApi.Persistence` — and SHALL fail loudly when a report emits a path the map does not recognize, so an unseen prefix is surfaced instead of silently mis-aggregated.
 
 #### Scenario: Coverage regression
 
@@ -44,6 +44,11 @@ The coverage gate SHALL measure unique source lines — each line counted once, 
 
 - **WHEN** coverage improves and an operator raises the threshold to at most the newly measured rate
 - **THEN** the gate continues to enforce the higher bar
+
+#### Scenario: Unseen path prefix fails loudly
+
+- **WHEN** a coverage report emits a source path the normalization map does not recognize
+- **THEN** the gate fails, listing the offending path, instead of silently mis-aggregating it
 
 ### Requirement: Spec discipline is validated in CI
 

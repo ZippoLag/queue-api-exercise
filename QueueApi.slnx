@@ -13,6 +13,7 @@
   </Folder>
   <Folder Name="/src/Shared/">
     <Project Path="src/Shared/QueueApi.Auth/QueueApi.Auth.csproj" />
+    <Project Path="src/Shared/QueueApi.Persistence/QueueApi.Persistence.csproj" />
   </Folder>
   <Folder Name="/src/Users/">
     <Project Path="src/Users/Users.Api/Users.Api.csproj" />
@@ -28,6 +29,7 @@
   </Folder>
   <Folder Name="/tests/Shared/">
     <Project Path="tests/Shared/QueueApi.Auth.Tests/QueueApi.Auth.Tests.csproj" />
+    <Project Path="tests/Shared/QueueApi.Persistence.Tests/QueueApi.Persistence.Tests.csproj" />
   </Folder>
   <Folder Name="/tests/Users/">
     <Project Path="tests/Users/Users.Api.Tests/Users.Api.Tests.csproj" />

@@ -37,8 +37,13 @@
 #   Users/Users.Infrastructure/...         -> src/Users/Users.Infrastructure/...
 #   Shared/QueueApi.Auth/...               -> src/Shared/QueueApi.Auth/...
 #   src/Shared/QueueApi.Auth/...           (already canonical)
+#   Shared/QueueApi.Persistence/...        -> src/Shared/QueueApi.Persistence/...
+#   src/Shared/QueueApi.Persistence/...    (already canonical)
 #   tools/AuthDbInit/...                   (already canonical)
 #   src/...                                (already canonical)
+#   <checkout-prefix>/src/... or <checkout-prefix>/tools/... (some reports, e.g. the
+#   QueueApi.Persistence.Tests report, embed the canonical path under a checkout-dependent
+#   prefix) -> canonical tail extracted from the last src/ or tools/ segment
 #
 # Bare filenames (emitted by the Domain.Tests and QueueApi.Auth.Tests
 # reports, which list files relative to the project directory) are mapped by
@@ -49,6 +54,8 @@
 #   BasicAuthenticationOptions.cs / BasicAuthenticationServiceCollectionExtensions.cs /
 #   DbUserCredentialsProvider.cs / Pbkdf2PasswordHasher.cs / UserCredential.cs
 #       -> src/Shared/QueueApi.Auth/
+#   DbContextOptionsBuilderExtensions.cs
+#       -> src/Shared/QueueApi.Persistence/
 #   CmsEntity.cs / CmsEvent.cs / CmsRequest.cs / CmsRequestValidator.cs
 #       -> src/CmsWebhook/CmsWebhook.Domain/
 #   EntityListItem.cs / IEntityCommandRepository.cs / IEntityQueryRepository.cs /
@@ -105,24 +112,36 @@ extract_lines() {
       if (f ~ /^CmsWebhook\/CmsWebhook\.(Api|Application|Domain|Infrastructure)\//) return "src/" f
       if (f ~ /^CmsWebhook\.(Application|Domain|Infrastructure)\//) return "src/CmsWebhook/" f
       if (f ~ /^Shared\/QueueApi\.Auth\//) return "src/" f
+      if (f ~ /^Shared\/QueueApi\.Persistence\//) return "src/" f
       if (f ~ /^Users\/Users\.(Api|Application|Infrastructure)\//) return "src/" f
       if (f ~ /^(src\/|tools\/)/) return f
+      # Fall-through: some reports embed the canonical repo-relative path under a junk prefix
+      # (e.g. the QueueApi.Persistence.Tests report emits "workspaces/<checkout>/src/...").
+      # Whatever prefix precedes it varies per checkout, so extract the canonical tail instead
+      # of hardcoding a machine-specific prefix.
+      if (f ~ /src\//) { sub(/^.*src\//, "src/", f); return f }
+      if (f ~ /tools\//) { sub(/^.*tools\//, "tools/", f); return f }
       base = f; sub(/.*\//, "", base)
+      # Build the canonical path from the base name (never from the original prefixed path): a
+      # report may list a file under a project-relative prefix (e.g. "QueueApi.Auth/AuthDbContext.cs")
+      # that would otherwise produce a doubled key like "src/Shared/QueueApi.Auth/QueueApi.Auth/...",
+      # splitting one source line across two keys and leaving the canonical one uncovered.
       if (base == "AuthDbContext.cs"            ||
           base == "BasicAuthenticationHandler.cs" ||
           base == "BasicAuthenticationOptions.cs" ||
           base == "BasicAuthenticationServiceCollectionExtensions.cs" ||
           base == "DbUserCredentialsProvider.cs" ||
           base == "Pbkdf2PasswordHasher.cs"     ||
-          base == "UserCredential.cs") return "src/Shared/QueueApi.Auth/" f
+          base == "UserCredential.cs") return "src/Shared/QueueApi.Auth/" base
+      if (base == "DbContextOptionsBuilderExtensions.cs") return "src/Shared/QueueApi.Persistence/" base
       if (base == "CmsEntity.cs" || base == "CmsEvent.cs" ||
-          base == "CmsRequest.cs" || base == "CmsRequestValidator.cs") return "src/CmsWebhook/CmsWebhook.Domain/" f
+          base == "CmsRequest.cs" || base == "CmsRequestValidator.cs") return "src/CmsWebhook/CmsWebhook.Domain/" base
       if (base == "EntityListItem.cs" || base == "IEntityCommandRepository.cs" ||
           base == "IEntityQueryRepository.cs" || base == "ListEntitiesQueryHandler.cs" ||
-          base == "SetEntityVisibilityCommandHandler.cs") return "src/Users/Users.Application/" f
+          base == "SetEntityVisibilityCommandHandler.cs") return "src/Users/Users.Application/" base
       if (base == "EfEntityCommandRepository.cs" || base == "EfEntityQueryRepository.cs" ||
-          base == "UsersDbContext.cs" || base == "UsersServiceCollectionExtensions.cs") return "src/Users/Users.Infrastructure/" f
-      if (base == "EntityEndpoints.cs" || base == "HealthEndpoints.cs" || base == "Program.cs") return "src/Users/Users.Api/" f
+          base == "UsersDbContext.cs" || base == "UsersServiceCollectionExtensions.cs") return "src/Users/Users.Infrastructure/" base
+      if (base == "EntityEndpoints.cs" || base == "HealthEndpoints.cs" || base == "Program.cs") return "src/Users/Users.Api/" base
       return "UNKNOWN:" f
     }
   ' "$1"

@@ -16,6 +16,7 @@
 
   <ItemGroup>
     <ProjectReference Include="..\Users.Application\Users.Application.csproj" />
+    <ProjectReference Include="..\..\Shared\QueueApi.Persistence\QueueApi.Persistence.csproj" />
   </ItemGroup>
 
 </Project>

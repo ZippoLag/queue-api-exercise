@@ -39,6 +39,7 @@ For local development and debugging, see the README [Quickstart](../README.md#qu
 - **One `t4g.small` node** hosts both APIs as systemd services.
 - **TLS terminates on the instance** (Caddy): Let's Encrypt certificates when a domain is configured, or a self-signed internal certificate over the public IP when not. Plain HTTP redirects to HTTPS.
 - **Secrets live in SSM Parameter Store** (`SecureString`): fresh passwords are generated at environment creation — the committed local-development defaults are never used.
+- **The store engine stays SQLite.** The node never sets `Db__Provider` (the environment form of the `Db:Provider` configuration key — see [Configuration](configuration.md)), so every EF registration uses the `sqlite` default; no value is required in the deployment.
 - **No SSH port**: deploys travel via SSM Run Command; the security group exposes 80/443 (plus 8443 in the domainless variant, which serves the Users API over the public IP).
 - **CI deploys `main`**: a green push publishes both APIs to the S3 artifact bucket and ships them to the node (see [GitHub CI deploy](#github-ci-deploy)).
 

@@ -9,6 +9,7 @@
 
   <ItemGroup>
     <ProjectReference Include="..\..\src\Shared\QueueApi.Auth\QueueApi.Auth.csproj" />
+    <ProjectReference Include="..\..\src\Shared\QueueApi.Persistence\QueueApi.Persistence.csproj" />
   </ItemGroup>
 
 </Project>

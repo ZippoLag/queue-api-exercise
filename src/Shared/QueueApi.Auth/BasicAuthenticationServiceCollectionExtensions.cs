@@ -1,7 +1,9 @@
 using Microsoft.AspNetCore.Authentication;
 using Microsoft.EntityFrameworkCore;
+using Microsoft.Extensions.Configuration;
 using Microsoft.Extensions.DependencyInjection;
 using Microsoft.Extensions.Options;
+using QueueApi.Persistence;
 
 namespace QueueApi.Auth;
 
@@ -15,17 +17,28 @@ public static class BasicAuthenticationServiceCollectionExtensions
     /// </summary>
     /// <param name="services">The application's service collection.</param>
     /// <param name="connectionString">The connection string for the shared credential store.</param>
+    /// <param name="configuration">
+    /// The application configuration; <c>Db:Provider</c> selects the EF Core provider (default <c>sqlite</c>).
+    /// </param>
     /// <returns>The same <paramref name="services"/> for chaining.</returns>
     /// <remarks>
     /// Spec "Credential store location is configurable": the connection string is supplied by the caller from
-    /// configuration, keeping the shared library free of configuration-coupling. The scheme is registered as the
-    /// default authenticate and challenge scheme so that <c>ChallengeAsync</c> (issued by the authorization
-    /// middleware for <c>401</c>) routes to the Basic handler. Options validation runs at startup
-    /// (design decision 4 of the original change: fail fast on misconfiguration).
+    /// configuration, keeping the shared library free of configuration-coupling. The EF Core provider is
+    /// selected via the shared <see cref="DbContextOptionsBuilderExtensions.UseConfiguredProvider"/> switch, so
+    /// a future engine swap is a configuration value, not a source edit (spec "Database provider is
+    /// configurable"); omitting <paramref name="configuration"/> defaults the provider to <c>sqlite</c> (design
+    /// D5 of change configurable-db-provider). The scheme is registered as the default authenticate and
+    /// challenge scheme so that <c>ChallengeAsync</c> (issued by the authorization middleware for <c>401</c>)
+    /// routes to the Basic handler. Options validation runs at startup (design decision 4 of the original
+    /// change: fail fast on misconfiguration).
     /// </remarks>
-    public static IServiceCollection AddBasicAuthentication(this IServiceCollection services, string connectionString)
+    public static IServiceCollection AddBasicAuthentication(
+        this IServiceCollection services,
+        string connectionString,
+        IConfiguration? configuration = null)
     {
-        services.AddDbContext<AuthDbContext>(options => options.UseSqlite(connectionString));
+        var provider = configuration?["Db:Provider"] ?? "sqlite";
+        services.AddDbContext<AuthDbContext>(options => options.UseConfiguredProvider(provider, connectionString));
         services.AddScoped<IUserCredentialsProvider, DbUserCredentialsProvider>();
 
         services.AddOptions<BasicAuthenticationOptions>()
