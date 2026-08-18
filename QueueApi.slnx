@@ -13,6 +13,7 @@
   </Folder>
   <Folder Name="/src/Shared/">
     <Project Path="src/Shared/QueueApi.Auth/QueueApi.Auth.csproj" />
+    <Project Path="src/Shared/QueueApi.Persistence/QueueApi.Persistence.csproj" />
   </Folder>
   <Folder Name="/src/Users/">
     <Project Path="src/Users/Users.Api/Users.Api.csproj" />
