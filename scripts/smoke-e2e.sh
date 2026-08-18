@@ -61,13 +61,19 @@ publish_api() {
 }
 
 # Starts a published API, waits for its /health probe, and records the pid.
+# The executable runs with the publish directory as its working directory, mirroring the systemd unit's
+# WorkingDirectory=/opt/queue-api/<app>: ASP.NET Core resolves the content root (and therefore wwwroot,
+# where the published Blazor client shell lives) from the current directory.
 start_api() {
   local executable="$1" port="$2"
-  ASPNETCORE_ENVIRONMENT=Production \
-  ASPNETCORE_URLS="http://127.0.0.1:$port" \
-  ConnectionStrings__AuthDb="Data Source=$AUTH_DB_PATH" \
-  ConnectionStrings__CmsDb="Data Source=$CMS_DB_PATH;Default Timeout=30" \
-    "$executable" >"$WORK_DIR/$(basename "$executable").log" 2>&1 &
+  local app_dir
+  app_dir="$(cd "$(dirname "$executable")" && pwd)"
+  (cd "$app_dir" && \
+    ASPNETCORE_ENVIRONMENT=Production \
+    ASPNETCORE_URLS="http://127.0.0.1:$port" \
+    ConnectionStrings__AuthDb="Data Source=$AUTH_DB_PATH" \
+    ConnectionStrings__CmsDb="Data Source=$CMS_DB_PATH;Default Timeout=30" \
+      "$executable" >"$WORK_DIR/$(basename "$executable").log" 2>&1) &
   local pid=$!
 
   local deadline=$((SECONDS + 30))
