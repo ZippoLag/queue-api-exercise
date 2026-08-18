@@ -4,6 +4,8 @@ A platform-agnostic **.NET 9** API solution that accepts messages from an extern
 
 **Docs site:** [queue-api-exercise docs](https://ZippoLag.github.io/queue-api-exercise/) — generated API reference and conceptual docs, rebuilt on every push to `main`.
 
+> Note from author: the request to develop this project originally came as an exercise (hence the name); my first approach was classic: read the problem statement throughly, draft requirements and architecture by hand, format it into an initial solution design document and begin implementation discovery via TDD. Due to Life™ circumstances (and since I was _encouraged_ to use AI), my efforts went into setting-up a C#-optimized AISDLC and use it to refine requirements and guide agentic development. It has been an interesting exercise, and I'm quite content with the workflow I whipped-up (blogpost to be linked here soon), as well as with the result I steered it into developing.
+
 ## Quickstart
 
 ### Via Docker Compose
