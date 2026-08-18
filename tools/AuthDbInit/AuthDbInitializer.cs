@@ -1,5 +1,6 @@
 using Microsoft.EntityFrameworkCore;
 using QueueApi.Auth;
+using QueueApi.Persistence;
 
 namespace AuthDbInit;
 
@@ -31,6 +32,12 @@ public sealed record UserSeedResult(string Username, bool Created);
 public static class AuthDbInitializer
 {
     /// <summary>
+    /// The provider the tool pins via the shared switch — SQLite, the only wired implementation
+    /// (spec "Database provider is configurable").
+    /// </summary>
+    private const string DefaultProvider = "sqlite";
+
+    /// <summary>
     /// Ensures the store schema exists and seeds every requested user that is missing.
     /// </summary>
     /// <param name="connectionString">The SQLite connection string of the credential store.</param>
@@ -46,7 +53,9 @@ public static class AuthDbInitializer
         IReadOnlyCollection<UserSeed> users,
         CancellationToken cancellationToken = default)
     {
-        var options = new DbContextOptionsBuilder<AuthDbContext>().UseSqlite(connectionString).Options;
+        var options = new DbContextOptionsBuilder<AuthDbContext>()
+            .UseConfiguredProvider(DefaultProvider, connectionString)
+            .Options;
         await using var context = new AuthDbContext(options);
 
         await context.Database.EnsureCreatedAsync(cancellationToken);

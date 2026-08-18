@@ -60,7 +60,10 @@ public static class DbContextOptionsBuilderExtensions
         string connectionString)
         where TContext : DbContext
     {
-        builder.UseConfiguredProvider(provider, connectionString);
+        // The cast to the non-generic builder forces the non-generic overload below; without it, extension
+        // overload resolution would re-select this generic overload (the more specific receiver type) and
+        // recurse until the stack overflows.
+        ((DbContextOptionsBuilder)builder).UseConfiguredProvider(provider, connectionString);
         return builder;
     }
 }
