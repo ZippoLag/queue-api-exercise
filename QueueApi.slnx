@@ -19,6 +19,7 @@
     <Project Path="src/Users/Users.Api/Users.Api.csproj" />
     <Project Path="src/Users/Users.Application/Users.Application.csproj" />
     <Project Path="src/Users/Users.Infrastructure/Users.Infrastructure.csproj" />
+    <Project Path="src/Users/Users.Web/Users.Web.csproj" />
   </Folder>
   <Folder Name="/tests/" />
   <Folder Name="/tests/CmsWebhook/">

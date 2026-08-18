@@ -1,0 +1,225 @@
+@page "/"
+@using System.Net
+@using System.Net.Http.Headers
+@using System.Text
+@inject HttpClient Http
+@inject IConfiguration Configuration
+
+<PageTitle>Users API</PageTitle>
+
+@if (_username is null)
+{
+    <h1>Sign in</h1>
+
+    @if (_error is not null)
+    {
+        <p role="alert" class="error">@_error</p>
+    }
+
+    <form @onsubmit="SignInAsync" @onsubmit:preventDefault="true">
+        <div>
+            <label for="username">Username</label>
+            <input id="username" @bind="_usernameInput" autocomplete="username" />
+        </div>
+        <div>
+            <label for="password">Password</label>
+            <input id="password" type="password" @bind="_passwordInput" autocomplete="current-password" />
+        </div>
+        <button type="submit" disabled="@_busy">Sign in</button>
+    </form>
+}
+else
+{
+    <h1>Entities</h1>
+    <p>
+        Signed in as <strong>@_username</strong> (@(IsAdministrator ? "administrator" : "regular user")) —
+        <button @onclick="SignOut">Sign out</button>
+    </p>
+
+    @if (_error is not null)
+    {
+        <p role="alert" class="error">@_error</p>
+    }
+
+    @if (_entities is null)
+    {
+        <p>Loading…</p>
+    }
+    else
+    {
+        <table>
+            <thead>
+                <tr>
+                    <th>Id</th>
+                    <th>Visible</th>
+                    <th>Version</th>
+                    <th>Updated</th>
+                    <th>Payload</th>
+                    @if (IsAdministrator)
+                    {
+                        <th>Visibility</th>
+                    }
+                </tr>
+            </thead>
+            <tbody>
+                @foreach (var entity in _entities)
+                {
+                    <tr>
+                        <td>@entity.Id</td>
+                        <td>@entity.IsVisibleByAdmin</td>
+                        <td>@entity.LatestVersion</td>
+                        <td>@entity.UpdatedAt</td>
+                        <td>@entity.Payload</td>
+                        @if (IsAdministrator)
+                        {
+                            <td>
+                                <button @onclick="() => ToggleVisibilityAsync(entity)" disabled="@_busy">
+                                    @(entity.IsVisibleByAdmin ? "Disable" : "Enable")
+                                </button>
+                            </td>
+                        }
+                    </tr>
+                }
+            </tbody>
+        </table>
+    }
+}
+
+@code {
+    private const string EntitiesPath = "/entities";
+
+    private string _usernameInput = string.Empty;
+    private string _passwordInput = string.Empty;
+    private string? _username;
+    private string? _password;
+    private string? _error;
+    private bool _busy;
+    private IReadOnlyList<EntityItem>? _entities;
+
+    /// <summary>
+    /// Whether the signed-in user is the administrator, derived from the username exactly as the API
+    /// does: the configured <c>AdministratorUsername</c> (default <c>administrator</c>), ordinal compare
+    /// (design D4 of change extra-ui).
+    /// </summary>
+    private bool IsAdministrator => string.Equals(
+        _username,
+        Configuration["AdministratorUsername"] ?? "administrator",
+        StringComparison.Ordinal);
+
+    /// <summary>
+    /// Signs in with the entered credentials and loads the entity table; on failure the form stays with
+    /// the API's <c>401</c>/<c>403</c> surfaced inline (design D3).
+    /// </summary>
+    private async Task SignInAsync()
+    {
+        _error = null;
+        _busy = true;
+        try
+        {
+            _username = _usernameInput;
+            _password = _passwordInput;
+            await LoadEntitiesAsync();
+            if (_entities is null)
+            {
+                _username = null;
+                _password = null;
+            }
+        }
+        finally
+        {
+            _busy = false;
+        }
+    }
+
+    /// <summary>
+    /// Fetches the entity listing with the session's Basic credentials; non-success statuses clear the
+    /// table and surface a descriptive inline error.
+    /// </summary>
+    private async Task LoadEntitiesAsync()
+    {
+        using var request = new HttpRequestMessage(HttpMethod.Get, EntitiesPath);
+        request.Headers.Authorization = BasicHeader();
+
+        using var response = await Http.SendAsync(request);
+        if (response.IsSuccessStatusCode)
+        {
+            _entities = await response.Content.ReadFromJsonAsync<List<EntityItem>>() ?? [];
+        }
+        else
+        {
+            _entities = null;
+            _error = response.StatusCode switch
+            {
+                HttpStatusCode.Unauthorized => "Sign-in failed: invalid username or password.",
+                HttpStatusCode.Forbidden => "Sign-in failed: the cms-webhook user is reserved and cannot use this application.",
+                _ => $"Sign-in failed: the server returned {(int)response.StatusCode}.",
+            };
+        }
+    }
+
+    /// <summary>
+    /// Toggles one entity's administrator visibility through the existing enable/disable endpoints and
+    /// re-fetches the table after a <c>204</c>; <c>404</c>/<c>401</c>/<c>403</c> render inline (design D5).
+    /// </summary>
+    private async Task ToggleVisibilityAsync(EntityItem entity)
+    {
+        _error = null;
+        _busy = true;
+        try
+        {
+            var command = entity.IsVisibleByAdmin ? "disable" : "enable";
+            using var request = new HttpRequestMessage(HttpMethod.Post, $"{EntitiesPath}/{entity.Id}/{command}");
+            request.Headers.Authorization = BasicHeader();
+
+            using var response = await Http.SendAsync(request);
+            if (response.StatusCode == HttpStatusCode.NoContent)
+            {
+                await LoadEntitiesAsync();
+            }
+            else
+            {
+                _error = response.StatusCode switch
+                {
+                    HttpStatusCode.Unauthorized => "Sign-in failed: invalid username or password.",
+                    HttpStatusCode.Forbidden => "Not authorized to change entity visibility.",
+                    HttpStatusCode.NotFound => $"Entity '{entity.Id}' no longer exists.",
+                    _ => $"The server returned {(int)response.StatusCode}.",
+                };
+            }
+        }
+        finally
+        {
+            _busy = false;
+        }
+    }
+
+    /// <summary>
+    /// Clears the session state and returns to the sign-in form.
+    /// </summary>
+    private void SignOut()
+    {
+        _username = null;
+        _password = null;
+        _usernameInput = string.Empty;
+        _passwordInput = string.Empty;
+        _entities = null;
+        _error = null;
+    }
+
+    /// <summary>
+    /// Builds the session's Basic <c>Authorization</c> header value; credentials live only in memory.
+    /// </summary>
+    private AuthenticationHeaderValue BasicHeader()
+        => new("Basic", Convert.ToBase64String(Encoding.UTF8.GetBytes($"{_username}:{_password}")));
+
+    /// <summary>
+    /// One table row, mirroring the <c>GET /entities</c> response item shape (id, visibility flag,
+    /// version, update time, payload as a JSON string).
+    /// </summary>
+    private sealed record EntityItem(
+        string Id,
+        bool IsVisibleByAdmin,
+        int LatestVersion,
+        DateTimeOffset UpdatedAt,
+        string Payload);
+}
