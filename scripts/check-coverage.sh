@@ -37,6 +37,8 @@
 #   Users/Users.Infrastructure/...         -> src/Users/Users.Infrastructure/...
 #   Shared/QueueApi.Auth/...               -> src/Shared/QueueApi.Auth/...
 #   src/Shared/QueueApi.Auth/...           (already canonical)
+#   Shared/QueueApi.Persistence/...        -> src/Shared/QueueApi.Persistence/...
+#   src/Shared/QueueApi.Persistence/...    (already canonical)
 #   tools/AuthDbInit/...                   (already canonical)
 #   src/...                                (already canonical)
 #
@@ -49,6 +51,8 @@
 #   BasicAuthenticationOptions.cs / BasicAuthenticationServiceCollectionExtensions.cs /
 #   DbUserCredentialsProvider.cs / Pbkdf2PasswordHasher.cs / UserCredential.cs
 #       -> src/Shared/QueueApi.Auth/
+#   DbContextOptionsBuilderExtensions.cs
+#       -> src/Shared/QueueApi.Persistence/
 #   CmsEntity.cs / CmsEvent.cs / CmsRequest.cs / CmsRequestValidator.cs
 #       -> src/CmsWebhook/CmsWebhook.Domain/
 #   EntityListItem.cs / IEntityCommandRepository.cs / IEntityQueryRepository.cs /
@@ -105,6 +109,7 @@ extract_lines() {
       if (f ~ /^CmsWebhook\/CmsWebhook\.(Api|Application|Domain|Infrastructure)\//) return "src/" f
       if (f ~ /^CmsWebhook\.(Application|Domain|Infrastructure)\//) return "src/CmsWebhook/" f
       if (f ~ /^Shared\/QueueApi\.Auth\//) return "src/" f
+      if (f ~ /^Shared\/QueueApi\.Persistence\//) return "src/" f
       if (f ~ /^Users\/Users\.(Api|Application|Infrastructure)\//) return "src/" f
       if (f ~ /^(src\/|tools\/)/) return f
       base = f; sub(/.*\//, "", base)
@@ -115,6 +120,7 @@ extract_lines() {
           base == "DbUserCredentialsProvider.cs" ||
           base == "Pbkdf2PasswordHasher.cs"     ||
           base == "UserCredential.cs") return "src/Shared/QueueApi.Auth/" f
+      if (base == "DbContextOptionsBuilderExtensions.cs") return "src/Shared/QueueApi.Persistence/" f
       if (base == "CmsEntity.cs" || base == "CmsEvent.cs" ||
           base == "CmsRequest.cs" || base == "CmsRequestValidator.cs") return "src/CmsWebhook/CmsWebhook.Domain/" f
       if (base == "EntityListItem.cs" || base == "IEntityCommandRepository.cs" ||
