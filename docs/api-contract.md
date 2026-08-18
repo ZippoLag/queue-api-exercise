@@ -74,6 +74,10 @@ Administrator-only commands that override an entity's **visibility** for regular
 | `403 Forbidden` | The caller is not the administrator. |
 | `404 Not Found` | No entity with this id is known. |
 
+## Users API — browser UI at the origin root
+
+The Users API also serves a browser UI at its origin root (`/`): an anonymous Blazor WebAssembly shell plus its `_framework` assets, with a client-side-route fallback to the shell. The UI signs in with the same credentials and drives exactly the endpoints documented above from the same origin (no CORS). Serving the shell is additive — it changes **no** endpoint, auth policy, or OpenAPI contract. See [Architecture](architecture.md) for how the UI derives roles and renders the administrator toggle.
+
 ## Liveness — `GET /health`
 
 Anonymous liveness probe on both APIs: `200 OK` when healthy, `503 Service Unavailable` when not. Used by load balancers and the deployment pipeline's verification.

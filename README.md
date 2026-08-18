@@ -1,6 +1,6 @@
 # Queue API Exercise
 
-A platform-agnostic **.NET 9** API solution that accepts messages from an external CMS, records them, and processes them asynchronously into a database. It provides two APIs on top of shared Basic-Auth credentials and the same stores: the **CMS Webhook API** (`POST /cms/events`) ingests CMS events, and the **Users API** (`GET /entities`, admin-only `POST /entities/{id}/disable|enable`) serves the resulting entity store to regular users and the administrator.
+A platform-agnostic **.NET 9** API solution that accepts messages from an external CMS, records them, and processes them asynchronously into a database. It provides two APIs on top of shared Basic-Auth credentials and the same stores: the **CMS Webhook API** (`POST /cms/events`) ingests CMS events, and the **Users API** (`GET /entities`, admin-only `POST /entities/{id}/disable|enable`) serves the resulting entity store to regular users and the administrator, and hosts a browser UI at its origin root.
 
 **Docs site:** [queue-api-exercise docs](https://ZippoLag.github.io/queue-api-exercise/) — generated API reference and conceptual docs, rebuilt on every push to `main`.
 
@@ -66,6 +66,8 @@ curl -u administrator:a1b2c3d4-e5f6-4a7b-8c9d-0e1f2a3b4c5d -X POST http://127.0.
 curl -u administrator:a1b2c3d4-e5f6-4a7b-8c9d-0e1f2a3b4c5d -X POST http://127.0.0.1:5265/entities/entity-1/enable
 ```
 
+The Users API also serves a browser UI at `http://127.0.0.1:5265/` — the shell loads anonymously; sign in as `administrator` to see the toggle column or `regular-user` to see the table without it.
+
 > The passwords above are the local-development defaults — DO NOT use them outside local development. Serve
 > production over TLS (HTTPS). See [Configuration](docs/configuration.md) for the canonical listing.
 
@@ -90,6 +92,7 @@ coverage ratchet, end-to-end smoke tests, spec discipline, and Terraform validat
 
 - **Hosted site**: <https://ZippoLag.github.io/queue-api-exercise/> — a DocFX-generated static site (API reference from the XML doc comments + the conceptual Markdown below), rebuilt on every push to `main`
 - [Architecture](docs/architecture.md) — system overview, design decisions, API and event-processing semantics
+- [Database schema](docs/database-schema.md) — canonical SQL reference for the two stores
 - [Domain glossary](docs/dsl_glossary.md) — domain specific language: terminology and nomenclature
 - [Development style](docs/development-style.md) — development approach, AI assistance, and code conventions
 - [Configuration](docs/configuration.md) — credentials, environment variables, TLS

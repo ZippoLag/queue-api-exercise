@@ -5,13 +5,50 @@ In tandem with the KISS principle, the project is treated as if it will grow, so
 
 To get usable value as soon as possible, the visible API implementation comes first, with the inner domain and infrastructure (and possibly a simple UI) added later as needed.
 
+```mermaid
+flowchart TB
+    subgraph Adapters["Adapters (API layer)"]
+        Endpoints["Minimal API endpoints"]
+    end
+    subgraph Application["Application (CQRS)"]
+        Writes["Commands (writes)"]
+        Reads["Queries (reads)"]
+        Ports["Ports (interfaces)"]
+    end
+    subgraph Infrastructure["Infrastructure"]
+        Ef["EF Core repositories"]
+        Db[("SQLite stores")]
+    end
+    Domain["Domain (CmsEntity / CmsEvent)"]
+
+    Endpoints --> Writes
+    Endpoints --> Reads
+    Writes --> Ports
+    Reads --> Ports
+    Ports --> Ef
+    Ef --> Db
+    Writes --> Domain
+    Reads --> Domain
+    Ef --> Domain
+```
+
 ## System Overview
 
-![alt text](system_overview.png)
+```mermaid
+flowchart LR
+    CMS[External CMS] -->|POST /cms/events| Webhook["CMS Webhook API"]
+    Webhook -->|records Pending| EventLog[("cms_event_log")]
+    Worker["Outbox worker"] -->|sweeps Pending| EventLog
+    Worker -->|writes processed state| Entities[("cms_entities")]
+    Entities -->|GET /entities| Users["Users API"]
+    Users -->|disable / enable| Entities
+    Auth[("queue-auth.db (Users)")] --> Webhook
+    Auth --> Users
+```
 
 The Queue-API-Exercise system exposes 2 REST APIs: a webhook for handling CMS entity-related events and one to handle Users and Admin Users requests. Because the project may grow, the cost of an initial scaffolding big-bang with boilerplate is paid up front: the solution is a modular monolith, ready to be split whenever necessary.
 
-**Current implementation status:** the **CMS Webhook API** and the **Users API** are both fully implemented for v1 — shared auth, the `/cms/events` ingestion endpoint with asynchronous outbox processing into the entity store, the Users API's `/entities` read side and the administrator's enable/disable control, plus the `administrator`/`regular-user` seeding (see below).
+**Current implementation status:** the **CMS Webhook API** and the **Users API** are both fully implemented for v1 — shared auth, the `/cms/events` ingestion endpoint with asynchronous outbox processing into the entity store, the Users API's `/entities` read side and the administrator's enable/disable control, plus the `administrator`/`regular-user` seeding and the browser UI the Users API serves at its origin root (see below).
 
 ### Design decisions
 
@@ -36,10 +73,9 @@ Authentication is handled in the CMS Webhook API as Basic Auth (`username`+`pass
 > Note: every endpoint requires Basic auth **except** the anonymous `/health` liveness probe and the `/openapi/v1.json` contract endpoint. Both are marked `.AllowAnonymous()` so load balancers, orchestrators, and clients can probe/discover them without credentials; every other endpoint still rejects anonymous requests with `401`.
 
 ### Persistence
-Persistence uses `sqlite` relational databases accessed via **EF Core** (per the initial requirements). Two independent stores exist, each configurable through its own `ConnectionStrings` value (e.g. via environment variables) so it can point elsewhere — or at another engine via an EF Core provider swap — without code changes:
+Persistence uses `sqlite` relational databases accessed via **EF Core** (per the initial requirements). The engine is **selected by configuration**: every EF registration reads `Db:Provider` (default `sqlite`, the only wired implementation) through the shared switch in `src/Shared/QueueApi.Persistence/`, so swapping engines is a configuration value plus one switch branch and the provider package — no registration call-site change (see [Configuration](configuration.md)). SQLite keeps `EnsureCreated` startup schema creation; a real engine swap (e.g. PostgreSQL) additionally requires EF migrations, which is the documented precondition for such a change. Two independent stores exist, each configurable through its own `ConnectionStrings` value (e.g. via environment variables) so it can point elsewhere: the shared credential store (`db/queue-auth.db`, provisioned idempotently by `scripts/init-db.sh`) and the dedicated CMS database (`db/queue-cms.db`, created automatically at startup by `EnsureCreated`, no init step). SQLite WAL journal mode and a busy timeout keep the webhook's writes and the outbox worker's writes coexisting on the CMS store's single-writer file. The full column-level reference — every table, column, type, key, and index for both stores — lives in [Database schema](database-schema.md).
 
-- **Implemented:** the shared credential store (`db/queue-auth.db`, `Users` table) holding username + PBKDF2 password hash per user, configured via `ConnectionStrings:AuthDb` and provisioned idempotently by `scripts/init-db.sh`.
-- **Implemented:** the dedicated CMS database (`db/queue-cms.db`) holding the `cms_event_log` outbox and the `cms_entities` store, configured via `ConnectionStrings:CmsDb` and created automatically at startup (`EnsureCreated`, no init step). SQLite WAL journal mode and a busy timeout are enabled so the webhook's writes and the outbox worker's writes coexist on the single-writer file.
+> **Design note — the administrator visibility flag stays on `cms_entities`.** `is_visible_by_admin` is a single boolean column on the entity table rather than a separate visibility table: at one-node SQLite scale a separate table would add joins and transactions for no measurable gain. Reconsider the split only when the two APIs get separate databases (a cross-database join becomes the cost) or visibility becomes multi-valued (a single boolean can no longer express it).
 
 Relative `Data Source=` values resolve against the configured `Data:DbBasePath`, falling back to the application's content root — in local development the CmsWebhook project's content root is its own directory, so the stores land under `src/CmsWebhook/CmsWebhook.Api/db/`; the Users API points its own base path at that same directory (see its `appsettings.json`), so both APIs address the same two store files. Absolute and `:memory:` data sources are used as-is, and the resolved directory is created at startup when missing. There is **no repository-marker walk** (the `QueueApi.slnx` hunt is gone): a published deployment simply points `Data__DbBasePath` (or `ConnectionStrings__*`) at a writable location through environment variables — see [Configuration](configuration.md).
 
@@ -106,6 +142,30 @@ When **CmsEvent**s are processed, a number of scenarios may arise depending on t
 #### Outbox processing model
 Events are processed **immediately but asynchronously** (design decision): after recording the **CmsEvent** with status `Pending`, the endpoint signals an in-process `CmsEventProcessorWorker` through a `System.Threading.Channels` fast-path; the worker also sweeps pending rows at startup and periodically, so events survive crashes and restarts. Each event is processed in its own transaction and advances to `Processed`, or to `Failed` with its error recorded (failed events are not retried automatically and are logged at Error; processing continues with the next event). Processing maintains the `cms_entities` store — the latest version, payload, published flag and the administrator-visibility flag the Users API reads. The upsert carries the stored visibility override forward, so a processed CMS event can never silently re-enable an entity the administrator disabled. The write side (ingest command + processing) lives in `CmsWebhook.Application`/`CmsWebhook.Infrastructure` following strict CQRS; the read side is the Users API module.
 
+```mermaid
+sequenceDiagram
+    participant CMS as External CMS
+    participant Webhook as CMS Webhook API
+    participant Store as queue-cms.db
+    participant Worker as Outbox worker
+
+    CMS->>Webhook: POST /cms/events
+    Webhook->>Store: record CmsEvent (Pending)
+    Webhook-->>CMS: 201 Created
+    Worker->>Store: sweep Pending events
+    Worker->>Store: upsert cms_entities
+    Worker->>Store: advance status to Processed (or Failed)
+```
+
+```mermaid
+stateDiagram-v2
+    [*] --> Pending: recorded
+    Pending --> Processed: applied successfully
+    Pending --> Failed: processing error
+    Processed --> [*]
+    Failed --> [*]
+```
+
 ### Healthcheck
 `GET /health` is an **anonymous liveness probe** returning `200 OK` with a JSON body (`{"status":"Healthy"}`) while the application is running, and `503 Service Unavailable` when unhealthy. It exists so load balancers and orchestrators can probe the API without credentials, and is the first endpoint exempt from the fallback authorization policy. It is implemented with the built-in `AddHealthChecks()` + `MapHealthChecks("/health")` and a small JSON response writer — liveness only, no deep or database checks (the app already fails fast at startup when either store is unreachable).
 
@@ -116,6 +176,14 @@ Events are processed **immediately but asynchronously** (design decision): after
 > **Implemented:** `src/Users/Users.Api` (endpoints), `Users.Application` (query/command handlers) and `Users.Infrastructure` (its own `UsersDbContext` over the shared `cms_entities` table) — there is no `Users.Domain` project; the module reuses `CmsWebhook.Domain.CmsEntity` directly.
 
 The **Users API** serves clients interested in their entities' data. It reads the same `cms_entities` store the CMS Webhook API writes, using the same shared credential store. Every endpoint requires Basic auth except the anonymous `/health` liveness probe, `/openapi/v1.json` and the always-on Scalar UI. The fallback policy admits any authenticated user **except** `cms-webhook` (reserved for the CMS Webhook API); the enable/disable commands additionally require the `administrator` username. Missing or invalid credentials yield `401`; a valid user without the required role yields `403`. The API fails to start when the store lacks the `administrator` user.
+
+### Browser UI (served at the origin root)
+
+The Users API hosts a **Blazor WebAssembly** client (`src/Users/Users.Web`) and serves it at its origin root (`/`) with the hosted-WASM pipeline: `UseBlazorFrameworkFiles()` serves the client's `_framework` assets and a `MapFallbackToFile("index.html")` fallback serves the shell for client-side routes, both **anonymous** — the static-file and fallback middleware run before the auth middleware, so the shell loads without credentials while every endpoint keeps its exact auth semantics. The UI calls the API's own endpoints **same-origin**, so no CORS is configured anywhere.
+
+- **Sign-in** collects the same username/password the API authenticates against and attaches them as a Basic `Authorization` header on a same-origin `HttpClient`; credentials live only in memory for the session. `401`/`403` — including the reserved `cms-webhook` rejection — surface as an inline error.
+- **Role is derived from the username**, exactly as the API derives it: the `administrator` sees the full table with a per-row enable/disable toggle backed by the existing `POST /entities/{id}/disable|enable` endpoints; every other user sees the same table **without** the toggle column.
+- **No API change**: serving the UI is additive anonymous static-file serving only; every endpoint, auth policy, and the OpenAPI contract behave exactly as before.
 
 ### `/entities` GET
 Returns a list of all currently published entities:

@@ -1,5 +1,7 @@
 # Users API Specification
 
+> Source files: src/Users/Users.Web/App.razor, src/Users/Users.Web/Pages/Home.razor, src/Users/Users.Web/Layout/MainLayout.razor, src/Users/Users.Web/Program.cs, src/Users/Users.Web/Properties/AssemblyInfo.cs, src/Users/Users.Web/Properties/launchSettings.json, src/Users/Users.Web/Users.Web.csproj, src/Users/Users.Web/_Imports.razor, src/Users/Users.Web/wwwroot/appsettings.json, src/Users/Users.Web/wwwroot/css/app.css, src/Users/Users.Web/wwwroot/index.html
+
 ## Purpose
 
 The Users API serves entity data to authenticated users and lets the administrator control which entities regular users can see, backed by the shared credential store and the CMS entity store. Users are provisioned manually; the API itself exposes no user-management endpoints.
@@ -126,3 +128,71 @@ The Users API SHALL expose an OpenAPI document describing its endpoints, generat
 
 - **WHEN** a client requests `GET /scalar/v1` without an `Authorization` header in any environment, including Staging and Production
 - **THEN** the API responds with `200 OK` and the browsable API reference UI
+
+### Requirement: Users API hosts a browser UI
+
+The Users API SHALL serve a browser-based UI at its origin root (`/`), from the same origin as its own endpoints, so the application shell and its assets load anonymously and all API calls from the UI are same-origin. A fallback SHALL serve the application shell for client-side routes. The UI SHALL let a user sign in with the same credentials the API authenticates against, and SHALL derive the role from the authenticated username exactly as the API does: the administrator SHALL see the full entity table (id, visibility flag, version, update time, payload) with an enable/disable toggle per row that invokes the existing administrator-only enable/disable endpoints; a regular user SHALL see the same table without the toggle column. The UI SHALL NOT offer any capability beyond what the existing API endpoints allow, and serving the UI SHALL NOT change any existing endpoint, authentication policy, or API contract.
+
+#### Scenario: UI shell loads anonymously
+
+- **WHEN** a client requests the origin root without credentials
+- **THEN** the API responds with the browser application shell
+
+#### Scenario: Client-side routes fall back to the shell
+
+- **WHEN** a client requests a client-side route path without credentials
+- **THEN** the API responds with the browser application shell
+
+#### Scenario: Sign-in with Users API credentials
+
+- **WHEN** a user signs in with valid credentials of a seeded user
+- **THEN** the UI shows the entity table for that user's role
+
+#### Scenario: Administrator sees the toggle
+
+- **WHEN** the administrator signs in and the store contains published entities
+- **THEN** each table row shows the full entity data including the visibility flag and an enable/disable toggle
+
+#### Scenario: Administrator toggles visibility
+
+- **WHEN** the administrator presses the toggle on an entity
+- **THEN** the UI invokes the existing enable/disable endpoint for that entity and the table reflects the new visibility state
+
+#### Scenario: Regular user has no toggle
+
+- **WHEN** a regular user signs in and the store contains published entities
+- **THEN** each table row shows the full entity data without the toggle column
+
+#### Scenario: Reserved cms user is rejected
+
+- **WHEN** a user signs in with the reserved `cms-webhook` credentials
+- **THEN** the UI surfaces a descriptive error and shows no entity data
+
+#### Scenario: Existing API behavior is unchanged
+
+- **WHEN** the UI is served alongside the API
+- **THEN** every existing endpoint, authentication policy, and the served OpenAPI contract behave exactly as before
+
+### Requirement: Read and write paths use separated configurations
+
+The Users API SHALL serve reads and writes on separated EF configurations. The `GET /entities` listing SHALL run on a read-only configuration: the query SHALL NOT track the returned entities and SHALL NOT mutate the store. The `POST /entities/{id}/disable` and `POST /entities/{id}/enable` commands SHALL run on a single-writer configuration that loads and persists the affected row in place. Listings SHALL return each entity's stored payload in full as a JSON string — payloads are not meant to be edited, so no endpoint SHALL accept payload content and the listing SHALL NOT project payloads away. Because the entity's read representation carries state the originating CMS event did not (a maintained update timestamp and the administrator-visibility flag), the read shape SHALL NOT be an exact match of the recorded event's shape: the recorded event carries only what the CMS sent, while the entity carries the processed state.
+
+#### Scenario: Listing is served without tracking or writes
+
+- **WHEN** a user requests `GET /entities`
+- **THEN** the response is served from the read-only configuration: the returned entities are not tracked by EF and the request does not write to the store
+
+#### Scenario: Visibility commands run on the writer configuration
+
+- **WHEN** the administrator requests `POST /entities/{id}/disable` or `POST /entities/{id}/enable`
+- **THEN** the affected row is loaded and persisted in place on the single-writer configuration
+
+#### Scenario: Full stored payload is returned
+
+- **WHEN** a user requests `GET /entities` and the store contains published entities with stored payloads
+- **THEN** each returned item carries the entity's full stored payload as a JSON string
+
+#### Scenario: Read shape differs from the recorded event shape
+
+- **WHEN** a processed entity is listed
+- **THEN** its item includes the maintained update timestamp and the administrator-visibility flag in addition to what the accepted event carried, so the item is not an exact match of the recorded event

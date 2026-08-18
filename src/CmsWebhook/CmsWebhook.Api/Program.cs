@@ -18,8 +18,8 @@ var cmsUsername = ResolveCmsUsername(builder.Configuration);
 var rateLimitPermitLimit = builder.Configuration.GetValue("RateLimiting:PermitLimit", 60);
 var rateLimitWindowSeconds = builder.Configuration.GetValue("RateLimiting:WindowSeconds", 60);
 
-builder.Services.AddBasicAuthentication(authDbConnectionString);
-builder.Services.AddCmsWebhookInfrastructure(cmsDbConnectionString);
+builder.Services.AddBasicAuthentication(authDbConnectionString, builder.Configuration);
+builder.Services.AddCmsWebhookInfrastructure(cmsDbConnectionString, builder.Configuration);
 builder.Services.AddScoped<IIngestCmsEventsCommandHandler, IngestCmsEventsCommandHandler>();
 
 // Standard ASP.NET Core rate limiting (no reimplementation, per the official docs): a named fixed-window

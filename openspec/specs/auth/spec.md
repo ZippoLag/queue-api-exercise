@@ -90,7 +90,7 @@ Authentication SHALL verify a presented password by re-deriving the hash with th
 
 ### Requirement: Credential store location is configurable
 
-The location of the credential store SHALL be configurable through application configuration, including environment variables, so it can be pointed at a different store without code changes.
+The location of the credential store SHALL be configurable through application configuration, including environment variables, so it can be pointed at a different store without code changes. The `AuthDbContext` SHALL be registered through the shared configuration-driven provider switch, so the EF Core provider follows the `Db:Provider` value (default `sqlite`) exactly like every other EF registration (spec "Database provider is configurable" — see the configuration spec for the switch semantics).
 
 #### Scenario: Default configuration
 
@@ -101,3 +101,8 @@ The location of the credential store SHALL be configurable through application c
 
 - **WHEN** an operator overrides the credential store configuration, for example via an environment variable
 - **THEN** the application uses the overridden store location
+
+#### Scenario: Provider follows the configured Db:Provider value
+
+- **WHEN** the application configures a supported `Db:Provider` value
+- **THEN** the `AuthDbContext` registration selects the EF Core provider through the shared provider switch instead of hardcoding SQLite

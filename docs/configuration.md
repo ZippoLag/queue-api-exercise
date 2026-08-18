@@ -32,6 +32,7 @@ The double-underscore convention maps environment variables to configuration key
 | `Auth__CmsUsername` | `Auth:CmsUsername` |
 | `Auth__AdministratorUsername` | `Auth:AdministratorUsername` (Users API) |
 | `Data__DbBasePath` | `Data:DbBasePath` |
+| `Db__Provider` | `Db:Provider` |
 
 ## Secrets guidance
 
@@ -97,6 +98,12 @@ Credentials live in the SQLite credential store (`db/queue-auth.db` by default �
 - The reserved cms username via `Auth:CmsUsername` (e.g. the `Auth__CmsUsername` environment variable); the Users API's administrator username via `Auth:AdministratorUsername` (e.g. `Auth__AdministratorUsername`).
 - To change a seeded user's password, delete `db/queue-auth.db` and re-run the script (re-running with a different password leaves the existing user unchanged).
 - The local-development default passwords used by `scripts/init-db.sh` are `0f6c3c5a-9b2e-4f7d-8a1c-2e5b9d7f3a61` (cms), `a1b2c3d4-e5f6-4a7b-8c9d-0e1f2a3b4c5d` (administrator) and `6d5c4b3a-2f1e-4d0c-9b8a-7f6e5d4c3b2a` (regular) — DO NOT use them outside local development.
+
+## Database provider
+
+The EF Core database engine is selected through the `Db:Provider` key, resolved through the standard precedence chain above like every other value (so the `Db__Provider` environment-variable form works in Staging/Production). The default — and the only supported value today — is `sqlite`. Every EF Core registration (`AuthDbContext`, `CmsDbContext`, `UsersDbContext`, and the `AuthDbInit` tool) routes through the shared provider switch in `src/Shared/QueueApi.Persistence/`, so adding another engine (for example PostgreSQL) is one switch branch plus its EF Core provider package reference — no registration call-site change.
+
+An unknown provider value fails fast at startup with an error naming the supported providers; it never silently falls back, because a deployment pointed at the wrong engine would corrupt its data contract. A real engine swap additionally requires EF migrations — SQLite keeps `EnsureCreated` startup schema creation, which does not carry over to a relational engine with a different schema story — see [Architecture](architecture.md).
 
 ## CMS event database
 

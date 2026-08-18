@@ -16,8 +16,8 @@ var cmsDbConnectionString = ResolveConnectionString(builder.Configuration, build
 var cmsUsername = ResolveUsername(builder.Configuration, "Auth:CmsUsername", "cms-webhook");
 var administratorUsername = ResolveUsername(builder.Configuration, "Auth:AdministratorUsername", "administrator");
 
-builder.Services.AddBasicAuthentication(authDbConnectionString);
-builder.Services.AddUsersInfrastructure(cmsDbConnectionString);
+builder.Services.AddBasicAuthentication(authDbConnectionString, builder.Configuration);
+builder.Services.AddUsersInfrastructure(cmsDbConnectionString, builder.Configuration);
 builder.Services.AddScoped<IListEntitiesQueryHandler, ListEntitiesQueryHandler>();
 builder.Services.AddScoped<ISetEntityVisibilityCommandHandler, SetEntityVisibilityCommandHandler>();
 builder.Services.AddSingleton(new UsersApiRoles(cmsUsername, administratorUsername));
@@ -135,6 +135,13 @@ using (var scope = app.Services.CreateScope())
     }
 }
 
+// The hosted Blazor client (change extra-ui): static web assets — the client's wwwroot content and its
+// _framework files — must load without credentials so the app can boot and ask for sign-in. The static
+// middleware short-circuits before authentication, and the SPA fallback is explicitly anonymous, while
+// every mapped endpoint below keeps its exact auth semantics (design D2).
+app.UseStaticFiles();
+app.UseBlazorFrameworkFiles();
+
 app.UseAuthentication();
 app.UseAuthorization();
 
@@ -145,6 +152,10 @@ app.MapOpenApi().AllowAnonymous();
 // The browsable UI renders the same public contract JSON already served anonymously at /openapi/v1.json,
 // so it is served in every environment (design: always-on Scalar, change openapi-consumer-ui).
 app.MapScalarApiReference().AllowAnonymous();
+
+// Last-resort route: any path no endpoint matched is a client-side route and receives the application
+// shell (change extra-ui, spec "Users API hosts a browser UI").
+app.MapFallbackToFile("index.html").AllowAnonymous();
 
 app.Run();
 

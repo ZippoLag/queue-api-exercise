@@ -17,6 +17,7 @@
 
   <ItemGroup>
     <ProjectReference Include="..\CmsWebhook.Application\CmsWebhook.Application.csproj" />
+    <ProjectReference Include="..\..\Shared\QueueApi.Persistence\QueueApi.Persistence.csproj" />
   </ItemGroup>
 
 </Project>
