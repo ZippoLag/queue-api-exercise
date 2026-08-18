@@ -6,8 +6,8 @@
 
 ## 2. Serve the UI from the Users API
 
-- [ ] 2.1 Add anonymous static-file serving + `UseBlazorFrameworkFiles()` + `MapFallbackToFile("index.html").AllowAnonymous()` to `Users.Api/Program.cs`, placed before the auth middleware (design D2)
-- [ ] 2.2 Add `WebApplicationFactory` tests: `GET /` returns the shell anonymously, a client-route path falls back to the shell, and existing endpoints/auth behavior is unchanged
+- [x] 2.1 Add anonymous static-file serving + `UseBlazorFrameworkFiles()` + `MapFallbackToFile("index.html").AllowAnonymous()` to `Users.Api/Program.cs`, placed before the auth middleware (design D2)
+- [x] 2.2 Add `WebApplicationFactory` tests: `GET /` returns the shell anonymously, a client-route path falls back to the shell, and existing endpoints/auth behavior is unchanged
 - [ ] 2.3 Run the Users API test suite and `bash scripts/check-coverage.sh` — the 100% ratchet must hold
 
 ## 3. Implement the UI
