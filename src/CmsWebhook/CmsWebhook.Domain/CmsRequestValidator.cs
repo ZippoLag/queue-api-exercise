@@ -12,6 +12,10 @@ namespace CmsWebhook.Domain;
 /// ignored). "First version added is version 1" is enforced as <c>version ≥ 1</c>. The payload must be a
 /// JSON object — "checked to be a valid json key/value object and nothing else" (spec: Validates and
 /// sanitizes events).
+/// Sanitization means the accepted values are valid and safe to store: strings are non-empty, the id is
+/// trimmed, and values are normalized to canonical types before being persisted through parameterized
+/// queries. The payload is opaque: only its being a JSON object is enforced, its contents and format are
+/// never inspected or transformed (spec: "Payload contents are opaque").
 /// </remarks>
 public static class CmsRequestValidator
 {
@@ -45,13 +49,9 @@ public static class CmsRequestValidator
             return false;
         }
 
-        if (!DateTimeOffset.TryParse(
-                request.Timestamp,
-                CultureInfo.InvariantCulture,
-                DateTimeStyles.RoundtripKind,
-                out var timestamp))
+        if (!TryParseTimestamp(request.Timestamp, out var timestamp))
         {
-            error = "'timestamp' is required and must be parseable as an ISO 8601 / RFC 3339 date-time.";
+            error = "'timestamp' is required and must be an ISO 8601 / RFC 3339 date-time, e.g. 2024-01-01T00:00:00Z or 2024-01-01T00:00:00+02:00.";
             return false;
         }
 
@@ -114,6 +114,32 @@ public static class CmsRequestValidator
             ["unPublish"] = CmsEventType.UnPublish,
             ["delete"] = CmsEventType.Delete,
         };
+
+    /// <summary>
+    /// The exact ISO 8601 / RFC 3339 date-time formats accepted, per the requirements' example
+    /// <c>2024-01-01T00:00:00Z</c>: ending in <c>Z</c> or a numeric UTC offset, with optional fractional seconds.
+    /// </summary>
+    /// <remarks>
+    /// RFC 3339 requires the <c>T</c> separator, seconds, and a <c>Z</c>/offset designator, so date-only,
+    /// culture-formatted, and offset-less values are rejected even though the general
+    /// <see cref="DateTimeOffset.TryParse(string, IFormatProvider?, DateTimeStyles, out DateTimeOffset)"/>
+    /// overload would accept them (spec: "Invalid timestamp").
+    /// </remarks>
+    private static readonly string[] TimestampFormats =
+    [
+        "yyyy-MM-dd'T'HH:mm:ss'Z'",
+        "yyyy-MM-dd'T'HH:mm:sszzz",
+        "yyyy-MM-dd'T'HH:mm:ss.FFFFFFF'Z'",
+        "yyyy-MM-dd'T'HH:mm:ss.FFFFFFFzzz",
+    ];
+
+    private static bool TryParseTimestamp(string? value, out DateTimeOffset timestamp)
+        => DateTimeOffset.TryParseExact(
+            value,
+            TimestampFormats,
+            CultureInfo.InvariantCulture,
+            DateTimeStyles.None,
+            out timestamp);
 
     private static bool TryParseType(string? value, out CmsEventType type)
     {

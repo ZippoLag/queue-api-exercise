@@ -256,6 +256,55 @@ public class UsersApiEndpointsTests
     }
 
     /// <summary>
+    /// Verifies a whitespace-only id is rejected with <c>400</c> and no entity is modified.
+    /// </summary>
+    /// <remarks>
+    /// Source business rule: spec scenario "Empty or whitespace-only id" — the id is sanitized like the
+    /// webhook's, so an only-whitespace id is a client error, not an unknown entity; the seeded flags must
+    /// stay untouched (a disable would flip <c>enabled-1</c>, an enable would flip <c>disabled-1</c>).
+    /// </remarks>
+    [Theory]
+    [InlineData("disable")]
+    [InlineData("enable")]
+    public async Task PostCommand_WhitespaceOnlyId_ReturnsBadRequestAndDoesNotExecute(string command)
+    {
+        using var factory = new UsersApiFactory();
+        SeedStandardEntities(factory);
+        using var client = AuthenticatedClient(factory, UsersApiFactory.AdministratorUsername, UsersApiFactory.AdministratorPassword);
+
+        var response = await client.PostAsync($"/entities/%20%20/{command}", null);
+
+        response.StatusCode.Should().Be(HttpStatusCode.BadRequest);
+        using var context = factory.CreateUsersDbContext();
+        (await context.Entities.FindAsync(EnabledEntityId))!.IsVisibleByAdmin.Should().BeTrue();
+        (await context.Entities.FindAsync(DisabledEntityId))!.IsVisibleByAdmin.Should().BeFalse();
+    }
+
+    /// <summary>
+    /// Verifies a route id carrying surrounding whitespace resolves to the stored entity (trim-before-lookup).
+    /// </summary>
+    /// <remarks>
+    /// Source business rule: spec scenario "Id is trimmed before lookup" — padded ids are sanitized the
+    /// way the webhook trims event ids before the handler runs.
+    /// </remarks>
+    [Theory]
+    [InlineData("disable", false)]
+    [InlineData("enable", true)]
+    public async Task PostCommand_PaddedId_ResolvesToStoredEntity(string command, bool expectedVisibility)
+    {
+        using var factory = new UsersApiFactory();
+        SeedStandardEntities(factory);
+        using var client = AuthenticatedClient(factory, UsersApiFactory.AdministratorUsername, UsersApiFactory.AdministratorPassword);
+        var id = command == "disable" ? EnabledEntityId : DisabledEntityId;
+
+        var response = await client.PostAsync($"/entities/%20{id}%20/{command}", null);
+
+        response.StatusCode.Should().Be(HttpStatusCode.NoContent);
+        using var context = factory.CreateUsersDbContext();
+        (await context.Entities.FindAsync(id))!.IsVisibleByAdmin.Should().Be(expectedVisibility);
+    }
+
+    /// <summary>
     /// Verifies a regular user cannot disable an entity: <c>403</c> and the handler is not executed.
     /// </summary>
     /// <remarks>

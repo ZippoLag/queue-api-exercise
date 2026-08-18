@@ -131,13 +131,40 @@ public class CmsRequestValidatorTests
     }
 
     /// <summary>
-    /// Verifies a missing or unparseable timestamp is rejected.
+    /// Verifies timestamps in the requirements' example form — ending in <c>Z</c> or a numeric UTC offset,
+    /// with optional fractional seconds — are accepted.
     /// </summary>
-    /// <remarks>Source business rule: spec scenario "Invalid timestamp".</remarks>
+    /// <remarks>Source business rule: spec scenario "Timestamp follows the requirements' example format".</remarks>
+    [Theory]
+    [InlineData("2024-01-01T00:00:00Z")]
+    [InlineData("2024-01-01T00:00:00+02:00")]
+    [InlineData("2024-01-01T00:00:00.123Z")]
+    [InlineData("2024-01-01T00:00:00.1234567+02:00")]
+    public void TryValidate_ValidTimestamp_IsAccepted(string timestamp)
+    {
+        using var payload = JsonDocument.Parse("{}");
+        var request = new CmsRequest { Type = "publish", Id = "entity-1", Payload = payload.RootElement, Version = 1, Timestamp = timestamp };
+
+        var valid = CmsRequestValidator.TryValidate(request, out var @event, out var error);
+
+        valid.Should().BeTrue();
+        error.Should().BeNull();
+        @event!.Timestamp.Should().Be(DateTimeOffset.Parse(timestamp, System.Globalization.CultureInfo.InvariantCulture));
+    }
+
+    /// <summary>
+    /// Verifies a missing or non-RFC 3339 timestamp is rejected, including date-only, culture-formatted
+    /// and offset-less values the general date-time parser would accept.
+    /// </summary>
+    /// <remarks>Source business rule: spec scenario "Invalid timestamp" — only the ISO 8601 / RFC 3339
+    /// form of the requirements' example is accepted.</remarks>
     [Theory]
     [InlineData(null)]
     [InlineData("not-a-date")]
     [InlineData("2024-13-45T99:99:99Z")]
+    [InlineData("2024-01-01")]
+    [InlineData("01/01/2024")]
+    [InlineData("2024-01-01T00:00:00")]
     public void TryValidate_InvalidTimestamp_IsRejected(string? timestamp)
     {
         using var payload = JsonDocument.Parse("{}");
@@ -255,6 +282,26 @@ public class CmsRequestValidatorTests
         valid.Should().BeTrue();
         @event!.Version.Should().BeNull();
         @event.Payload.Should().BeNull();
+    }
+
+    /// <summary>
+    /// Verifies a payload that is a JSON object with arbitrary internal contents is accepted and recorded
+    /// verbatim without inspecting its contents.
+    /// </summary>
+    /// <remarks>Source business rule: spec scenario "Payload contents are opaque" — only JSON-object-ness
+    /// is enforced; the payload is stored exactly as received, whatever its internal shape or values.</remarks>
+    [Fact]
+    public void TryValidate_ArbitraryPayloadObject_IsRecordedVerbatim()
+    {
+        const string payloadJson = """{"a":{"b":[1,2,{"c":"d"}]},"e":null,"f":true,"g":"<script>alert(1)</script>"}""";
+        using var payload = JsonDocument.Parse(payloadJson);
+        var request = new CmsRequest { Type = "update", Id = "entity-1", Payload = payload.RootElement, Version = 3, Timestamp = "2024-01-01T00:00:00Z" };
+
+        var valid = CmsRequestValidator.TryValidate(request, out var @event, out var error);
+
+        valid.Should().BeTrue();
+        error.Should().BeNull();
+        @event!.Payload.Should().Be(payloadJson);
     }
 
     /// <summary>

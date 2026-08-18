@@ -38,14 +38,14 @@ The `POST /cms/events` endpoint SHALL accept either a single **CmsRequest** obje
 
 ### Requirement: Validates and sanitizes events
 
-The endpoint SHALL validate and sanitize every received **CmsRequest** before recording it. A **CmsRequest** SHALL carry:
+The endpoint SHALL validate and sanitize every received **CmsRequest** before recording it. Sanitization SHALL guarantee that accepted values are valid and safe to store: every kept value SHALL be non-null with a valid value, kept strings SHALL be non-empty (whitespace-only values SHALL be rejected), and accepted values SHALL be stored so they cannot alter the stored shape or inject into the storage layer. A **CmsRequest** SHALL carry:
 
 - a `type` that is exactly `publish`, `update`, `unPublish` or `delete` (case-sensitive);
-- a non-empty `id` string;
-- a `timestamp` parseable as an ISO 8601 / RFC 3339 date-time;
+- a non-empty `id` string, trimmed when recorded;
+- a `timestamp` that is an ISO 8601 / RFC 3339 date-time in the form of the requirements' example `2024-01-01T00:00:00Z` — ending in `Z` or a numeric UTC offset (`+hh:mm` / `-hh:mm`), with optional fractional seconds; date-only, culture-formatted, and offset-less timestamps SHALL be rejected;
 - for `publish`, `update` and `unPublish`: a `version` that is an integer of at least `1`, and a `payload` that is a JSON object.
 
-A `delete` event SHALL NOT be required to carry `payload` or `version`, and extra fields on a `delete` event SHALL be ignored. A request that fails validation SHALL be rejected with `400 Bad Request` and nothing recorded.
+The `payload`'s internal contents and format SHALL NOT be inspected, validated, or transformed: only its being a JSON object is enforced, and it is recorded verbatim. A `delete` event SHALL NOT be required to carry `payload` or `version`, and extra fields on a `delete` event SHALL be ignored. A request that fails validation SHALL be rejected with `400 Bad Request` and nothing recorded.
 
 #### Scenario: Unknown event type
 
@@ -62,9 +62,14 @@ A `delete` event SHALL NOT be required to carry `payload` or `version`, and extr
 - **WHEN** a client sends a **CmsRequest** with an empty or whitespace-only `id`
 - **THEN** the API responds with `400 Bad Request` and records no event
 
+#### Scenario: Timestamp follows the requirements' example format
+
+- **WHEN** a client sends a **CmsRequest** whose `timestamp` is an ISO 8601 / RFC 3339 date-time like `2024-01-01T00:00:00Z` or `2024-01-01T00:00:00+02:00`
+- **THEN** the API accepts the event and records it
+
 #### Scenario: Invalid timestamp
 
-- **WHEN** a client sends a **CmsRequest** whose `timestamp` is not parseable as an ISO 8601 / RFC 3339 date-time
+- **WHEN** a client sends a **CmsRequest** whose `timestamp` is not a valid ISO 8601 / RFC 3339 date-time — for example unparseable text, a date-only value (`2024-01-01`), a culture-formatted value (`01/01/2024`), or an offset-less value (`2024-01-01T00:00:00`)
 - **THEN** the API responds with `400 Bad Request` and records no event
 
 #### Scenario: Version below one
@@ -76,6 +81,11 @@ A `delete` event SHALL NOT be required to carry `payload` or `version`, and extr
 
 - **WHEN** a client sends a `publish`, `update` or `unPublish` event whose `payload` is not a JSON object (e.g. an array, string or number)
 - **THEN** the API responds with `400 Bad Request` and records no event
+
+#### Scenario: Payload contents are opaque
+
+- **WHEN** a client sends a `publish`, `update` or `unPublish` event whose `payload` is a JSON object with arbitrary internal contents (unknown keys, nested shapes, any value types)
+- **THEN** the API accepts the event and records the payload verbatim without inspecting its contents
 
 #### Scenario: Missing payload on a non-delete event
 

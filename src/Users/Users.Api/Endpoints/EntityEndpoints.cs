@@ -140,8 +140,9 @@ public static class EntityEndpoints
     /// Declares the shared response contract of the administrator-only enable/disable commands.
     /// </summary>
     /// <remarks>
-    /// Both handlers return <c>IResult</c> with 204/404, and the authorization layer adds 401/403; the
-    /// generated default 200 would lie about the contract, so it is replaced explicitly.
+    /// Both handlers return <c>IResult</c> with 204/404, the id sanitization adds 400 for an empty or
+    /// whitespace-only id, and the authorization layer adds 401/403; the generated default 200 would lie
+    /// about the contract, so it is replaced explicitly.
     /// </remarks>
     /// <param name="operation">The generated OpenAPI operation to correct; mutated in place.</param>
     public static void ConfigureSetVisibilityOperation(OpenApiOperation operation)
@@ -149,6 +150,7 @@ public static class EntityEndpoints
         operation.Responses = new OpenApiResponses
         {
             ["204"] = new OpenApiResponse { Description = "The visibility change was applied (idempotent)." },
+            ["400"] = new OpenApiResponse { Description = "The id is empty or whitespace-only." },
             ["401"] = new OpenApiResponse { Description = "Missing or invalid credentials." },
             ["403"] = new OpenApiResponse { Description = "The caller is not the administrator." },
             ["404"] = new OpenApiResponse { Description = "No entity with this id is known." },
@@ -181,32 +183,71 @@ public static class EntityEndpoints
     /// <summary>
     /// Handles <c>POST /entities/{id}/disable</c>: hides the entity from regular users.
     /// </summary>
-    /// <param name="id">The entity id from the route.</param>
+    /// <remarks>
+    /// The route id is sanitized like the CMS Webhook API's event ids: surrounding whitespace is trimmed
+    /// and an empty-or-whitespace-only id is a client error, not an unknown entity (spec: "Empty or
+    /// whitespace-only id" and "Id is trimmed before lookup").
+    /// </remarks>
+    /// <param name="id">The entity id from the route; trimmed before the lookup.</param>
     /// <param name="handler">The command handler applying the visibility change.</param>
     /// <param name="cancellationToken">The request cancellation token.</param>
-    /// <returns><c>204 No Content</c> on success, <c>404 Not Found</c> for an unknown id.</returns>
+    /// <returns><c>204 No Content</c> on success, <c>400 Bad Request</c> for an empty or whitespace-only id,
+    /// <c>404 Not Found</c> for an unknown id.</returns>
     private static async Task<IResult> DisableAsync(
         string id,
         ISetEntityVisibilityCommandHandler handler,
         CancellationToken cancellationToken)
     {
-        var updated = await handler.HandleAsync(new SetEntityVisibilityCommand(id, IsVisibleByAdmin: false), cancellationToken);
+        if (!TrySanitizeId(id, out var trimmedId))
+        {
+            return Results.BadRequest();
+        }
+
+        var updated = await handler.HandleAsync(new SetEntityVisibilityCommand(trimmedId, IsVisibleByAdmin: false), cancellationToken);
         return updated ? Results.NoContent() : Results.NotFound();
     }
 
     /// <summary>
     /// Handles <c>POST /entities/{id}/enable</c>: restores the entity to regular users.
     /// </summary>
-    /// <param name="id">The entity id from the route.</param>
+    /// <remarks>
+    /// The route id is sanitized like the CMS Webhook API's event ids: surrounding whitespace is trimmed
+    /// and an empty-or-whitespace-only id is a client error, not an unknown entity (spec: "Empty or
+    /// whitespace-only id" and "Id is trimmed before lookup").
+    /// </remarks>
+    /// <param name="id">The entity id from the route; trimmed before the lookup.</param>
     /// <param name="handler">The command handler applying the visibility change.</param>
     /// <param name="cancellationToken">The request cancellation token.</param>
-    /// <returns><c>204 No Content</c> on success, <c>404 Not Found</c> for an unknown id.</returns>
+    /// <returns><c>204 No Content</c> on success, <c>400 Bad Request</c> for an empty or whitespace-only id,
+    /// <c>404 Not Found</c> for an unknown id.</returns>
     private static async Task<IResult> EnableAsync(
         string id,
         ISetEntityVisibilityCommandHandler handler,
         CancellationToken cancellationToken)
     {
-        var updated = await handler.HandleAsync(new SetEntityVisibilityCommand(id, IsVisibleByAdmin: true), cancellationToken);
+        if (!TrySanitizeId(id, out var trimmedId))
+        {
+            return Results.BadRequest();
+        }
+
+        var updated = await handler.HandleAsync(new SetEntityVisibilityCommand(trimmedId, IsVisibleByAdmin: true), cancellationToken);
         return updated ? Results.NoContent() : Results.NotFound();
+    }
+
+    /// <summary>
+    /// Sanitizes the route id the way the CMS Webhook API sanitizes its event ids: trims surrounding
+    /// whitespace and rejects an empty-or-whitespace-only value.
+    /// </summary>
+    /// <remarks>
+    /// Mirrors the webhook's id rule (non-empty after trim); a route segment that is only whitespace is a
+    /// client error, not an unknown entity (spec: "Empty or whitespace-only id").
+    /// </remarks>
+    /// <param name="id">The raw route id; never <see langword="null"/> for a matched route segment.</param>
+    /// <param name="trimmedId">The trimmed id when <paramref name="id"/> is non-empty.</param>
+    /// <returns><see langword="true"/> when the id is non-empty after trimming.</returns>
+    private static bool TrySanitizeId(string id, out string trimmedId)
+    {
+        trimmedId = id.Trim();
+        return trimmedId.Length > 0;
     }
 }

@@ -43,6 +43,11 @@ public class CmsRequest
     /// <summary>
     /// ISO 8601 (aka RFC 3339) date-time of when the event happened in the external CMS.
     /// </summary>
+    /// <remarks>
+    /// Must be in the requirements' example form, e.g. <c>2024-01-01T00:00:00Z</c> — ending in <c>Z</c> or a
+    /// numeric UTC offset, with optional fractional seconds. Date-only, culture-formatted, and offset-less
+    /// values are rejected by <see cref="CmsRequestValidator"/> (spec: "Invalid timestamp").
+    /// </remarks>
     [JsonPropertyName("timestamp")]
     public string? Timestamp { get; set; }
 }

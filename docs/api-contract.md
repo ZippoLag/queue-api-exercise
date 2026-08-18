@@ -69,6 +69,7 @@ Administrator-only commands that override an entity's **visibility** for regular
 | Code | Meaning |
 |---|---|
 | `204 No Content` | The visibility change was applied (idempotent). |
+| `400 Bad Request` | The id is empty or whitespace-only. |
 | `401 Unauthorized` | Missing or invalid credentials. |
 | `403 Forbidden` | The caller is not the administrator. |
 | `404 Not Found` | No entity with this id is known. |

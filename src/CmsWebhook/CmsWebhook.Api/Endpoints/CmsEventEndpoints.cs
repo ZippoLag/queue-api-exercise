@@ -51,9 +51,11 @@ public static class CmsEventEndpoints
     /// The handler parses <c>HttpRequest.Body</c> manually, so the generator infers no request schema and
     /// emits a default 200 response. Both accepted forms (a single object or a batch array) are declared as
     /// a <c>oneOf</c> so the contract matches the verified runtime behavior, and the responses are replaced
-    /// with the actual status codes. Called from the <c>AddOpenApi</c> document transformer (change
-    /// improve-api-documentation): operation-level <c>WithOpenApi</c> callbacks were not applied by the
-    /// 9.0.18 generator, so the contract is set in the document transformer where it is guaranteed to run.
+    /// with the actual status codes. The 400 description enumerates the validation failure modes, including
+    /// the non-object payload rule (change request-sanitization). Called from the <c>AddOpenApi</c> document
+    /// transformer (change improve-api-documentation): operation-level <c>WithOpenApi</c> callbacks were not
+    /// applied by the 9.0.18 generator, so the contract is set in the document transformer where it is
+    /// guaranteed to run.
     /// </remarks>
     /// <param name="operation">The generated operation to correct; mutated in place.</param>
     public static void ConfigureOpenApiOperation(OpenApiOperation operation)
@@ -138,7 +140,7 @@ public static class CmsEventEndpoints
             },
             ["400"] = new OpenApiResponse
             {
-                Description = "The body is not valid JSON, is neither an object nor an array of objects, or fails validation (unknown type, missing/invalid id, version or timestamp).",
+                Description = "The body is not valid JSON, is neither an object nor an array of objects, or fails validation (unknown type, missing/invalid id, version or timestamp, or a payload that is not a JSON object).",
             },
             ["401"] = new OpenApiResponse { Description = "Missing or invalid credentials." },
             ["403"] = new OpenApiResponse { Description = "The caller is authenticated but not authorized on this API." },

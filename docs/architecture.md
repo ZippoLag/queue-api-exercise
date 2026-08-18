@@ -89,7 +89,7 @@ Endpoint which handles the `POST` operation and expects the following **CmsReque
 - `delete`: removes the **CmsEntity** by deleting it from the persistence layer
 
 #### Validations
-This endpoint acts as an Outbox, hence it validates and sanitizes only the base **CmsRequest** values. The `payload` object is checked to be a valid `json` key/value object and nothing else. If these do not cause an error, the **CmsEvent** is recorded in the database and the endpoint returns `201` (Created), otherwise it returns `400`. A batch is all-or-nothing: if any event in the array is invalid, the whole batch is rejected with `400` and nothing is recorded.
+This endpoint acts as an Outbox, hence it validates and sanitizes only the base **CmsRequest** values (see [Sanitization](dsl_glossary.md)). Sanitization means accepted values are valid and safe to store: strings are non-empty, the `id` is trimmed, and each value is normalized to a canonical type before being persisted through parameterized queries. The `timestamp` must be an ISO 8601 / RFC 3339 date-time in the form of the requirements' example `2024-01-01T00:00:00Z` — ending in `Z` or a numeric UTC offset, with optional fractional seconds; date-only, culture-formatted and offset-less values are rejected with `400`. The `payload` object is checked to be a valid `json` key/value object and nothing else — its contents and format remain opaque and are never inspected. If these do not cause an error, the **CmsEvent** is recorded in the database and the endpoint returns `201` (Created), otherwise it returns `400`. A batch is all-or-nothing: if any event in the array is invalid, the whole batch is rejected with `400` and nothing is recorded.
 
 #### Event processing
 When **CmsEvent**s are processed, a number of scenarios may arise depending on the `id` (entityId), `version` (entity version) and `payload`'s contents. These include, but are not limited to, the following:
@@ -140,9 +140,9 @@ Each item carries the entity **id** and its **administrator-visibility flag** (s
 ```
 
 ### `/entities/{id}/disable` POST
-Only accepts requests from the `administrator` user, and internally results in the "is visible" flag being disabled. Requires no request body, is idempotent (disabling an already-disabled entity still succeeds), returns `204 No Content` on success and `404 Not Found` for an unknown entity id.
+Only accepts requests from the `administrator` user, and internally results in the "is visible" flag being disabled. Requires no request body, is idempotent (disabling an already-disabled entity still succeeds), returns `204 No Content` on success and `404 Not Found` for an unknown entity id. The route `id` is sanitized like the webhook's event ids: surrounding whitespace is trimmed before the lookup and an empty-or-whitespace-only id is rejected with `400` (see [Sanitization](dsl_glossary.md)).
 
 ### `/entities/{id}/enable` POST
-Only accepts requests from the `administrator` user, and internally results in the "is visible" flag being enabled. Requires no request body, is idempotent, returns `204 No Content` on success and `404 Not Found` for an unknown entity id.
+Only accepts requests from the `administrator` user, and internally results in the "is visible" flag being enabled. Requires no request body, is idempotent, returns `204 No Content` on success and `404 Not Found` for an unknown entity id. The route `id` is sanitized like the webhook's event ids: surrounding whitespace is trimmed before the lookup and an empty-or-whitespace-only id is rejected with `400` (see [Sanitization](dsl_glossary.md)).
 
 > Note: enabling and disabling the visibility is independent from publishing status and regular update operations performed on the entity, and the administrator's choice survives subsequent CMS events (the entity upsert preserves the flag).

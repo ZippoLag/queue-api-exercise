@@ -138,7 +138,8 @@ public class CmsWebhookApiOpenApiTests
 
         var responses = post.GetProperty("responses");
         responses.TryGetProperty("201", out _).Should().BeTrue();
-        responses.TryGetProperty("400", out _).Should().BeTrue();
+        responses.TryGetProperty("400", out var badRequest).Should().BeTrue();
+        badRequest.GetProperty("description").GetString().Should().Contain("payload");
         responses.TryGetProperty("401", out _).Should().BeTrue();
         responses.TryGetProperty("403", out var forbidden).Should().BeTrue();
         forbidden.GetProperty("description").GetString()

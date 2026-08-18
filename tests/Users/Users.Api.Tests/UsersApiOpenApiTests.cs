@@ -100,6 +100,9 @@ public class UsersApiOpenApiTests
         {
             var responses = paths.GetProperty(path).GetProperty("post").GetProperty("responses");
             responses.TryGetProperty("204", out _).Should().BeTrue();
+            responses.TryGetProperty("400", out var badRequest).Should().BeTrue();
+            badRequest.GetProperty("description").GetString()
+                .Should().Be("The id is empty or whitespace-only.");
             responses.TryGetProperty("401", out _).Should().BeTrue();
             responses.TryGetProperty("403", out _).Should().BeTrue();
             responses.TryGetProperty("404", out _).Should().BeTrue();
