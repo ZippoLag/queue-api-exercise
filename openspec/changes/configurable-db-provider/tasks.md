@@ -14,9 +14,9 @@
 
 ## 3. Documentation
 
-- [ ] 3.1 `docs/configuration.md`: document `Db:Provider` (default `sqlite`, supported values, position in the precedence chain)
-- [ ] 3.2 `docs/deployment-aws.md`: document the `Db__Provider` environment-variable form; note that AWS stays SQLite so no value is required
-- [ ] 3.3 `docs/architecture.md`: update the persistence provider-swap claim to match reality (config-selected provider; EF migrations are the precondition for a non-SQLite engine)
+- [x] 3.1 `docs/configuration.md`: document `Db:Provider` (default `sqlite`, supported values, position in the precedence chain)
+- [x] 3.2 `docs/deployment-aws.md`: document the `Db__Provider` environment-variable form; note that AWS stays SQLite so no value is required
+- [x] 3.3 `docs/architecture.md`: update the persistence provider-swap claim to match reality (config-selected provider; EF migrations are the precondition for a non-SQLite engine)
 
 ## 4. Verification
 
