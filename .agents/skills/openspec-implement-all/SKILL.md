@@ -6,7 +6,7 @@ license: MIT
 compatibility: Requires openspec CLI and git.
 metadata:
   author: project
-  version: "1.0.0"
+  version: "1.1.0"
 ---
 
 Drive every pending OpenSpec change to completion, one change per branch, until none remain.
@@ -17,9 +17,15 @@ Drive every pending OpenSpec change to completion, one change per branch, until 
 
 ## Preflight (once)
 
-1. **Detect the base branch at invocation** — `git branch --show-current` (if detached HEAD, fall back to `git symbolic-ref refs/remotes/origin/HEAD` and confirm with the user). This is the branch every spec-branch starts from and merges back into **for this run**. The user may move to a different base (e.g. `main`) before a later run — re-detect at each invocation; never assume a fixed name. Announce the base branch.
-2. **Confirm push authorization** — the loop ends each change with a push; get a one-time go-ahead.
-3. **Confirm the working tree is clean** (`git status`) — the loop commits per task and starts clean.
+1. **Detect the base branch and whether this run resumes an in-progress change** — `git branch --show-current`:
+   - **On a spec branch** (name starts with `change/`, or matches an active change in `openspec list --json`): this is a **resume** — a previous run left that change mid-flight. Its commits and `- [x]` tasks are progress, not errors; make it the first change to finish, on its existing branch. Derive the base branch as the nearest ancestor branch of the current branch (`git branch --merged <current>` lists ancestor branches; pick the one whose tip is closest to the current tip, preferring the remote default's local counterpart when names differ). **Confirm the derived base with the user** — they may be accumulating work on a non-default branch (e.g. `extras`) — then announce the base branch and the resumed change.
+   - **On a detached HEAD**: fall back to `git symbolic-ref refs/remotes/origin/HEAD` (its local counterpart) and confirm with the user.
+   - **Otherwise** the current branch is the base branch; announce it.
+   The base branch is what every spec-branch starts from and merges back into **for this run**. Re-detect at each invocation; never assume a fixed name.
+2. **Confirm push authorization** — the loop ends each change with a push; get a one-time go-ahead that names the remote target (the base branch, or another integration branch the user is accumulating work on).
+3. **Reconcile the working tree** (`git status`) instead of blindly requiring it clean:
+   - Clean: proceed.
+   - Dirty: list the dirty files and ask the user how to resolve them before the loop starts — **commit** (as part of the resumed change when resuming, or on the base otherwise), **stash**, or **discard** (`git restore`). When resuming and the dirty files clearly belong to the resumed change's remaining tasks, suggest commit as the default — but still wait for the user's answer; never guess.
 
 ## Triage: audit pending changes before implementing
 
@@ -43,6 +49,7 @@ While `openspec list --json` returns at least one non-archived change that was n
 
 ### 1. Select the next change
 
+- **Resumed change first** — if preflight step 1 identified an in-progress change on the current branch, select it first and skip scoring; it is already branched, and its incomplete tasks are the run's starting point.
 - Run `openspec list --json`; for each candidate read its `proposal.md`, `design.md` and `tasks.md` (and note `completedTasks`/`totalTasks`).
 - Score candidates and pick the one that either needs the least friction or unblocks others:
   - Closest to done (highest `completedTasks` / `totalTasks`).
