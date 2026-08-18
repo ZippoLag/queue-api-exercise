@@ -5,7 +5,7 @@ using Microsoft.Extensions.Configuration;
 namespace Users.Api.Tests;
 
 /// <summary>
-/// Unit tests for the <see cref="Program"/> startup configuration helpers exposed for testability.
+/// Unit tests for the <c>Program</c> startup configuration helpers exposed for testability.
 /// </summary>
 /// <remarks>
 /// Mirrors the CmsWebhook coverage: absolute and in-memory data sources pass through untouched, relative
