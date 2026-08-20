@@ -1,5 +1,5 @@
 ---
-name: openspec-verify-implementation-phrase
+name: openspec-x-verify-implementation-phrase
 description: Verify how a given phrase from the requirements is implemented, tested, and documented — across code, tests, XML docs, OpenAPI, and the docs folder. Diagnostic only; explore-mode report. Use with a phrase, e.g. /skill:openspec-verify-implementation-phrase <phrase or file ref>.
 allowed-tools: Bash(openspec:*)
 license: MIT
