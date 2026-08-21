@@ -130,7 +130,7 @@ resolve_grammar() {
 # prebuilds/<platform>-<arch>/. So a compiled binding always wins over prebuilds.
 build_grammar() {
     local name="$1"
-    local pkg_dir target_name
+    local pkg_dir target_name work platform_arch
 
     pkg_dir="$(resolve_grammar "$name")"
     [ -n "$pkg_dir" ] && [ -f "$pkg_dir/package.json" ] || {
@@ -138,17 +138,17 @@ build_grammar() {
         return 1
     }
 
-    if [ -d "$pkg_dir/build/Release" ] && ls "$pkg_dir/build/Release/"*.node >/dev/null 2>&1; then
+    [ -f "$pkg_dir/binding.gyp" ] || die "$name: no binding.gyp in $pkg_dir"
+    # binding.gyp is gyp syntax (comments like `# OS == "win"`), not strict JSON,
+    # so JSON.parse would throw. Extract the first "target_name" instead.
+    target_name="$(sed -n 's/^[[:space:]]*"target_name"[[:space:]]*:[[:space:]]*"\([^"]*\)".*$/\1/p' "$pkg_dir/binding.gyp" | head -n1)"
+    [ -n "$target_name" ] || die "$name: could not read target_name from binding.gyp"
+
+    work="$pkg_dir/build/Release"
+    if [ -f "$work/$target_name.node" ]; then
         log "$name: native binding already present, nothing to build"
         return 0
     fi
-
-    [ -f "$pkg_dir/binding.gyp" ] || die "$name: no binding.gyp in $pkg_dir"
-    target_name="$(node -e "
-      const fs = require('fs');
-      const gyp = JSON.parse(fs.readFileSync('$pkg_dir/binding.gyp', 'utf8'));
-      console.log(gyp.targets[0].target_name);
-    ")"
 
     # node-addon-api is an npm dependency of the grammar; locate it from the
     # grammar's own node_modules chain, falling back to the openlore install.
@@ -167,8 +167,8 @@ build_grammar() {
       process.exit(1);
     " 2>/dev/null)" || die "$name: could not locate node-addon-api headers"
 
-    log "$name: compiling $target_name from source (no usable prebuild for $(node -e 'process.stdout.write(process.platform + \"-\" + process.arch)'))"
-    local work="$pkg_dir/build/Release"
+    platform_arch="$(node -e 'process.stdout.write(process.platform + "-" + process.arch)')"
+    log "$name: compiling $target_name from source (no usable prebuild for $platform_arch)"
     mkdir -p "$work"
 
     gcc  -std=c11  -fPIC -O2 -I "$pkg_dir/src" -c "$pkg_dir/src/parser.c"   -o "$work/parser.o"
@@ -198,6 +198,7 @@ verify_grammar() {
 
 main() {
     local fixed_any=0
+    local failed_any=0
     for grammar in tree-sitter-c-sharp tree-sitter-bash; do
         log "== $grammar =="
         # Fast path: grammar already loads (correct store entry + usable prebuild
@@ -211,9 +212,12 @@ main() {
             fixed_any=1
         else
             log "$grammar still does not load — see messages above"
+            failed_any=1
         fi
     done
-    if [ "$fixed_any" -eq 1 ]; then
+    if [ "$failed_any" -ne 0 ]; then
+        die "one or more OpenLore grammars could not be repaired"
+    elif [ "$fixed_any" -eq 1 ]; then
         log "Repairs applied. Re-run: openlore analyze --force && openlore doctor"
     else
         log "Nothing to repair — OpenLore grammars are healthy."

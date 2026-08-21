@@ -4,10 +4,12 @@ ENV DEBIAN_FRONTEND=noninteractive
 # --- BUILD PHASE (Runs as root to install system tools) ---
 USER root
 
-# Install system dependencies
+# Install system dependencies. python3 is the full package on purpose: the
+# image's default python3-minimal ships no stdlib (no shlex), which breaks
+# node-gyp when the AI toolchain compiles native addons (scripts/install-ai-sdlc.sh).
 RUN apt-get update && apt-get install -y --no-install-recommends \
     curl unzip procps wget git less iproute2 ca-certificates gnupg \
-    openssh-client && \
+    openssh-client python3 && \
     apt-get clean && rm -rf /var/lib/apt/lists/*
 
 ENV DEBIAN_FRONTEND=dialog
