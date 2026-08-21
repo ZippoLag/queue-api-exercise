@@ -1,16 +1,21 @@
 {
-  "name": "C# (.NET 9)",
-  "build": { "dockerfile": "Dockerfile" },
+  "name": "Queue API Exercise Image",
+  "build": {
+    "dockerfile": "Dockerfile",
+    "context": "."
+  },
+  "workspaceFolder": "/workspaces/${localWorkspaceFolderBasename}",
+  "shutdownAction": "stopContainer",
   "customizations": {
     "vscode": {
       "extensions": [
         "ms-dotnettools.csharp",
         "ms-dotnettools.csdevkit",
-        "johnpapa.vscode-peacock",
-        "rangav.vscode-thunder-client"
+        "johnpapa.vscode-peacock"
       ],
       "settings": {
-        "terminal.integrated.defaultProfile.linux": "bash"
+        "terminal.integrated.defaultProfile.linux": "bash",
+        "dotnetAcquisitionExtension.sharedExistingDotnetPath": "/usr/share/dotnet/dotnet"
       }
     }
   },

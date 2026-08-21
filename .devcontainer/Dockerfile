@@ -4,7 +4,7 @@ ENV DEBIAN_FRONTEND=noninteractive
 # --- BUILD PHASE (Runs as root to install system tools) ---
 USER root
 
-# 1. Install system dependencies
+# Install system dependencies
 RUN apt-get update && apt-get install -y --no-install-recommends \
     curl unzip procps wget git less iproute2 ca-certificates gnupg \
     openssh-client && \
@@ -14,14 +14,23 @@ ENV DEBIAN_FRONTEND=dialog
 
 WORKDIR /workspace
 
-# 2. Install .NET tools and workloads as the unprivileged user
-RUN dotnet tool install --global dotnet-ef && \
-    dotnet nuget locals all --clear && \
+# Update SDK workloads while root owns the shared SDK installation.
+RUN dotnet nuget locals all --clear && \
     dotnet workload update && \
     (dotnet workload install wasm-tools-net9 || dotnet workload install wasm-tools || true)
-    
+
+# Extra .NET runtimes required by the VS Code C# extension
+# (Roslyn BuildHost needs Microsoft.NETCore.App 8.0; the language server uses .NET 10).
+# Runtimes only - the .NET 6 SDK stays the only SDK so `dotnet build` keeps using 6.0.
+RUN curl -sSL https://dot.net/v1/dotnet-install.sh | bash /dev/stdin --channel 8.0 --runtime dotnet --install-dir /usr/share/dotnet \
+    && curl -sSL https://dot.net/v1/dotnet-install.sh | bash /dev/stdin --channel 8.0 --runtime aspnetcore --install-dir /usr/share/dotnet \
+    && curl -sSL https://dot.net/v1/dotnet-install.sh | bash /dev/stdin --channel 10.0 --runtime dotnet --install-dir /usr/share/dotnet \
+    && curl -sSL https://dot.net/v1/dotnet-install.sh | bash /dev/stdin --channel 10.0 --runtime aspnetcore --install-dir /usr/share/dotnet
+
 # --- RUNTIME PHASE (Drop privileges) ---
 USER vscode
 
-# Keep container alive without needing root services like SSH
-ENTRYPOINT ["tail", "-f", "/dev/null"]
+# Install user tools for the same account VS Code uses, and make them available
+# in terminals and lifecycle commands.
+#ENV PATH="/home/vscode/.dotnet/tools:${PATH}"
+RUN dotnet tool install --global dotnet-ef --version 9.*
