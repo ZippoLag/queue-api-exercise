@@ -6,7 +6,7 @@
 ## 2. Style User Workflows and States
 
 - [x] 2.1 Style the sign-in form and authenticated header, including labels, inputs, submit/sign-out controls, disabled states, and inline errors; verify keyboard focus is visible and the existing sign-in/sign-out interactions are unchanged.
-- [ ] 2.2 Style the entity table, administrator visibility actions, loading state, error state, and Blazor error boundary while preserving role-based columns and all current text/data; verify regular users still have no visibility toggle and administrators retain the toggle.
+- [x] 2.2 Style the entity table, administrator visibility actions, loading state, error state, and Blazor error boundary while preserving role-based columns and all current text/data; verify regular users still have no visibility toggle and administrators retain the toggle.
 - [ ] 2.3 Add narrow-viewport table handling and stable control sizing so long payloads remain inspectable without overlapping controls; verify the table remains usable at a mobile viewport and readable at a desktop viewport.
 
 ## 3. Validate the Frontend Change
