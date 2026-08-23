@@ -4,6 +4,7 @@
 @using System.Text
 @inject HttpClient Http
 @inject IConfiguration Configuration
+@implements IAsyncDisposable
 
 <PageTitle>Users API</PageTitle>
 
@@ -38,9 +39,18 @@
                 <h1 id="entities-heading">Entities</h1>
                 <p>
                     Signed in as <strong>@_username</strong> (@(IsAdministrator ? "administrator" : "regular user")) —
-                    <button @onclick="SignOut">Sign out</button>
+                    <button @onclick="SignOutAsync">Sign out</button>
                 </p>
             </header>
+
+            <div class="polling-controls">
+                <label for="polling-interval">Refresh interval (seconds)</label>
+                <input id="polling-interval" type="number" min="1" step="1" @bind="_pollingIntervalInput" disabled="@_pollingActive" />
+                <label for="polling-enabled">
+                    <input id="polling-enabled" type="checkbox" checked="@_pollingActive" @onchange="PollingChangedAsync" />
+                    Poll automatically
+                </label>
+            </div>
 
             @if (_error is not null)
             {
@@ -105,6 +115,10 @@
     private string? _error;
     private bool _busy;
     private IReadOnlyList<EntityItem>? _entities;
+    private string _pollingIntervalInput = "1";
+    private bool _pollingActive;
+    private CancellationTokenSource? _pollingCancellation;
+    private Task? _pollingLoop;
 
     /// <summary>
     /// Whether the signed-in user is the administrator, derived from the username exactly as the API
@@ -206,14 +220,81 @@
     /// <summary>
     /// Clears the session state and returns to the sign-in form.
     /// </summary>
-    private void SignOut()
+    private async Task PollingChangedAsync(ChangeEventArgs args)
     {
+        if (args.Value is not bool enabled || !enabled)
+        {
+            _pollingActive = false;
+            await StopPollingAsync();
+            return;
+        }
+
+        if (!int.TryParse(_pollingIntervalInput, out var intervalSeconds) || intervalSeconds <= 0)
+        {
+            _pollingActive = false;
+            return;
+        }
+
+        await StopPollingAsync();
+        _pollingActive = true;
+        _pollingCancellation = new CancellationTokenSource();
+        _pollingLoop = PollEntitiesAsync(intervalSeconds, _pollingCancellation.Token);
+    }
+
+    /// <summary>
+    /// Refreshes the authenticated entity table at the configured cadence without overlapping requests.
+    /// </summary>
+    private async Task PollEntitiesAsync(int intervalSeconds, CancellationToken cancellationToken)
+    {
+        using var timer = new PeriodicTimer(TimeSpan.FromSeconds(intervalSeconds));
+        try
+        {
+            while (await timer.WaitForNextTickAsync(cancellationToken))
+            {
+                await LoadEntitiesAsync();
+            }
+        }
+        catch (OperationCanceledException) when (cancellationToken.IsCancellationRequested)
+        {
+        }
+    }
+
+    private async Task StopPollingAsync()
+    {
+        _pollingCancellation?.Cancel();
+        if (_pollingLoop is not null)
+        {
+            try
+            {
+                await _pollingLoop;
+            }
+            catch (OperationCanceledException)
+            {
+            }
+        }
+
+        _pollingCancellation?.Dispose();
+        _pollingCancellation = null;
+        _pollingLoop = null;
+    }
+
+    private async Task SignOutAsync()
+    {
+        _pollingActive = false;
+        await StopPollingAsync();
         _username = null;
         _password = null;
         _usernameInput = string.Empty;
         _passwordInput = string.Empty;
         _entities = null;
         _error = null;
+    }
+
+    /// <inheritdoc />
+    public async ValueTask DisposeAsync()
+    {
+        _pollingActive = false;
+        await StopPollingAsync();
     }
 
     /// <summary>
