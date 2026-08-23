@@ -11,6 +11,6 @@
 
 ## 3. Validate the Frontend Change
 
-- [ ] 3.1 Build `src/Users/Users.Web/Users.Web.csproj` and verify the project compiles successfully with no new warnings attributable to the styling change.
+- [x] 3.1 Build `src/Users/Users.Web/Users.Web.csproj` and verify the project compiles successfully with no new warnings attributable to the styling change.
 - [ ] 3.2 Run the relevant existing Users.Web/API tests and verify authentication, role-based entity visibility, toggle behavior, and endpoint contracts remain green.
 - [ ] 3.3 Perform a browser visual check of signed-out, signed-in regular-user, administrator, loading, and error states at desktop and mobile widths; verify no overflow, overlap, or loss of accessible focus treatment.
