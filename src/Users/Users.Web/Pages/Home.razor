@@ -7,83 +7,93 @@
 
 <PageTitle>Users API</PageTitle>
 
-@if (_username is null)
-{
-    <h1>Sign in</h1>
-
-    @if (_error is not null)
+<div class="users-page">
+    @if (_username is null)
     {
-        <p role="alert" class="error">@_error</p>
-    }
+        <section class="auth-panel" aria-labelledby="sign-in-heading">
+            <h1 id="sign-in-heading">Sign in</h1>
 
-    <form @onsubmit="SignInAsync" @onsubmit:preventDefault="true">
-        <div>
-            <label for="username">Username</label>
-            <input id="username" @bind="_usernameInput" autocomplete="username" />
-        </div>
-        <div>
-            <label for="password">Password</label>
-            <input id="password" type="password" @bind="_passwordInput" autocomplete="current-password" />
-        </div>
-        <button type="submit" disabled="@_busy">Sign in</button>
-    </form>
-}
-else
-{
-    <h1>Entities</h1>
-    <p>
-        Signed in as <strong>@_username</strong> (@(IsAdministrator ? "administrator" : "regular user")) —
-        <button @onclick="SignOut">Sign out</button>
-    </p>
+            @if (_error is not null)
+            {
+                <p role="alert" class="error">@_error</p>
+            }
 
-    @if (_error is not null)
-    {
-        <p role="alert" class="error">@_error</p>
-    }
-
-    @if (_entities is null)
-    {
-        <p>Loading…</p>
+            <form @onsubmit="SignInAsync" @onsubmit:preventDefault="true">
+                <div>
+                    <label for="username">Username</label>
+                    <input id="username" @bind="_usernameInput" autocomplete="username" />
+                </div>
+                <div>
+                    <label for="password">Password</label>
+                    <input id="password" type="password" @bind="_passwordInput" autocomplete="current-password" />
+                </div>
+                <button type="submit" disabled="@_busy">Sign in</button>
+            </form>
+        </section>
     }
     else
     {
-        <table>
-            <thead>
-                <tr>
-                    <th>Id</th>
-                    <th>Visible</th>
-                    <th>Version</th>
-                    <th>Updated</th>
-                    <th>Payload</th>
-                    @if (IsAdministrator)
-                    {
-                        <th>Visibility</th>
-                    }
-                </tr>
-            </thead>
-            <tbody>
-                @foreach (var entity in _entities)
-                {
-                    <tr>
-                        <td>@entity.Id</td>
-                        <td>@entity.IsVisibleByAdmin</td>
-                        <td>@entity.LatestVersion</td>
-                        <td>@entity.UpdatedAt</td>
-                        <td>@entity.Payload</td>
-                        @if (IsAdministrator)
-                        {
-                            <td>
-                                <button @onclick="() => ToggleVisibilityAsync(entity)" disabled="@_busy">
-                                    @(entity.IsVisibleByAdmin ? "Disable" : "Enable")
-                                </button>
-                            </td>
-                        }
-                    </tr>
-                }
-            </tbody>
-        </table>
+        <section class="entities-panel" aria-labelledby="entities-heading">
+            <header class="page-header">
+                <h1 id="entities-heading">Entities</h1>
+                <p>
+                    Signed in as <strong>@_username</strong> (@(IsAdministrator ? "administrator" : "regular user")) —
+                    <button @onclick="SignOut">Sign out</button>
+                </p>
+            </header>
+
+            @if (_error is not null)
+            {
+                <p role="alert" class="error">@_error</p>
+            }
+
+            @if (_entities is null)
+            {
+                <p>Loading…</p>
+            }
+            else
+            {
+                <div class="table-container">
+                    <table>
+                        <thead>
+                            <tr>
+                                <th>Id</th>
+                                <th>Visible</th>
+                                <th>Version</th>
+                                <th>Updated</th>
+                                <th>Payload</th>
+                                @if (IsAdministrator)
+                                {
+                                    <th>Visibility</th>
+                                }
+                            </tr>
+                        </thead>
+                        <tbody>
+                            @foreach (var entity in _entities)
+                            {
+                                <tr>
+                                    <td>@entity.Id</td>
+                                    <td>@entity.IsVisibleByAdmin</td>
+                                    <td>@entity.LatestVersion</td>
+                                    <td>@entity.UpdatedAt</td>
+                                    <td>@entity.Payload</td>
+                                    @if (IsAdministrator)
+                                    {
+                                        <td>
+                                            <button @onclick="() => ToggleVisibilityAsync(entity)" disabled="@_busy">
+                                                @(entity.IsVisibleByAdmin ? "Disable" : "Enable")
+                                            </button>
+                                        </td>
+                                    }
+                                </tr>
+                            }
+                        </tbody>
+                    </table>
+                </div>
+            }
+        </section>
     }
-}
+</div>
 
 @code {
     private const string EntitiesPath = "/entities";

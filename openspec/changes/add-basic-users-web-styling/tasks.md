@@ -1,6 +1,6 @@
 ## 1. Establish Shared Application Styling
 
-- [ ] 1.1 Add semantic shell and page-region styling hooks in `MainLayout.razor` and `Home.razor` without changing routes, event handlers, displayed data, or API calls; verify the existing sign-in and entity workflows remain represented in the markup.
+- [x] 1.1 Add semantic shell and page-region styling hooks in `MainLayout.razor` and `Home.razor` without changing routes, event handlers, displayed data, or API calls; verify the existing sign-in and entity workflows remain represented in the markup.
 - [ ] 1.2 Replace the default Users.Web presentation rules in `wwwroot/css/app.css` with scoped design tokens and shared styles for the application frame, surfaces, typography, spacing, links, focus indicators, and responsive containers; verify the stylesheet builds without syntax errors.
 
 ## 2. Style User Workflows and States
