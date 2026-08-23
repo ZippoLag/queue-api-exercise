@@ -27,5 +27,13 @@
     },
     "peacock.color": "#edaa91",
     "peacock.remoteColor": "#edaa91",
-    "workbench.experimental.modernUI": false
+    "workbench.experimental.modernUI": false,
+    "chat.tools.terminal.autoApprove": {
+        "dotnet run": true,
+        "dotnet test": true,
+        "/^bash scripts/check-coverage\\.sh$/": {
+            "approve": true,
+            "matchCommandLine": true
+        }
+    }
 }
