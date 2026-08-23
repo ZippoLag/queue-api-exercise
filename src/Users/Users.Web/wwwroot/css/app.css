@@ -1,3 +1,264 @@
+:root {
+    --ink: #17212b;
+    --muted: #5e6b75;
+    --canvas: #edf2f0;
+    --surface: #ffffff;
+    --surface-muted: #f5f8f7;
+    --line: #d7e1de;
+    --accent: #087f8c;
+    --accent-dark: #075b66;
+    --accent-soft: #dff3f1;
+    --danger: #a83242;
+    --danger-soft: #fff0f1;
+    --focus: #e28845;
+    --shadow: 0 18px 45px rgba(23, 33, 43, 0.1);
+    --space-1: 0.5rem;
+    --space-2: 0.75rem;
+    --space-3: 1rem;
+    --space-4: 1.5rem;
+    --space-5: 2rem;
+    --radius: 0.5rem;
+}
+
+*,
+*::before,
+*::after {
+    box-sizing: border-box;
+}
+
+html {
+    background: var(--canvas);
+    color: var(--ink);
+    font-family: Georgia, "Times New Roman", serif;
+    line-height: 1.5;
+}
+
+body {
+    margin: 0;
+    min-width: 18rem;
+}
+
+.app-shell {
+    min-height: 100vh;
+    background:
+        linear-gradient(135deg, rgba(8, 127, 140, 0.08) 0, transparent 38%),
+        linear-gradient(315deg, rgba(226, 136, 69, 0.1) 0, transparent 42%),
+        var(--canvas);
+}
+
+.app-main {
+    margin: 0 auto;
+    max-width: 78rem;
+    padding: clamp(1.25rem, 4vw, 4rem) clamp(1rem, 5vw, 5rem);
+}
+
+.users-page {
+    margin: 0 auto;
+    max-width: 68rem;
+}
+
+.auth-panel,
+.entities-panel {
+    background: var(--surface);
+    border: 1px solid var(--line);
+    border-radius: var(--radius);
+    box-shadow: var(--shadow);
+    padding: clamp(1.25rem, 4vw, 3rem);
+}
+
+h1 {
+    color: var(--ink);
+    font-size: clamp(2rem, 5vw, 3.75rem);
+    letter-spacing: 0;
+    line-height: 1.05;
+    margin: 0 0 var(--space-4);
+}
+
+.page-header {
+    align-items: baseline;
+    border-bottom: 1px solid var(--line);
+    display: flex;
+    gap: var(--space-3);
+    justify-content: space-between;
+    margin-bottom: var(--space-4);
+}
+
+.page-header p {
+    color: var(--muted);
+    margin: 0;
+    text-align: right;
+}
+
+form {
+    display: grid;
+    gap: var(--space-3);
+    max-width: 30rem;
+}
+
+form > div {
+    display: grid;
+    gap: var(--space-1);
+}
+
+label {
+    color: var(--muted);
+    font-size: 0.9rem;
+    font-weight: 700;
+}
+
+input,
+button {
+    border-radius: 0.35rem;
+    font: inherit;
+    min-height: 2.75rem;
+}
+
+input {
+    background: var(--surface);
+    border: 1px solid var(--line);
+    color: var(--ink);
+    padding: 0.55rem 0.75rem;
+    width: 100%;
+}
+
+button {
+    background: var(--accent);
+    border: 1px solid var(--accent);
+    color: white;
+    cursor: pointer;
+    font-weight: 700;
+    padding: 0.5rem 0.9rem;
+    transition: background-color 140ms ease, border-color 140ms ease, transform 140ms ease;
+}
+
+button:hover:not(:disabled) {
+    background: var(--accent-dark);
+    border-color: var(--accent-dark);
+    transform: translateY(-1px);
+}
+
+button:disabled {
+    cursor: wait;
+    opacity: 0.55;
+}
+
+button:focus-visible,
+input:focus-visible,
+a:focus-visible {
+    outline: 3px solid var(--focus);
+    outline-offset: 3px;
+}
+
+.error {
+    background: var(--danger-soft);
+    border-left: 4px solid var(--danger);
+    color: var(--danger);
+    margin: 0 0 var(--space-4);
+    padding: var(--space-2) var(--space-3);
+}
+
+.table-container {
+    overflow-x: auto;
+    width: 100%;
+}
+
+table {
+    border-collapse: collapse;
+    min-width: 54rem;
+    width: 100%;
+}
+
+th,
+td {
+    border-bottom: 1px solid var(--line);
+    padding: var(--space-2) var(--space-3);
+    text-align: left;
+    vertical-align: top;
+}
+
+th {
+    background: var(--surface-muted);
+    color: var(--muted);
+    font-size: 0.8rem;
+    letter-spacing: 0.04em;
+    text-transform: uppercase;
+}
+
+td {
+    max-width: 20rem;
+    overflow-wrap: anywhere;
+}
+
+td button {
+    min-width: 5.5rem;
+    white-space: nowrap;
+}
+
+#blazor-error-ui {
+    background: var(--danger);
+    bottom: 0;
+    box-shadow: 0 -1px 2px rgba(23, 33, 43, 0.2);
+    box-sizing: border-box;
+    color: white;
+    display: none;
+    left: 0;
+    padding: 0.75rem 1.25rem;
+    position: fixed;
+    width: 100%;
+    z-index: 1000;
+}
+
+#blazor-error-ui .dismiss {
+    cursor: pointer;
+    position: absolute;
+    right: 0.75rem;
+    top: 0.5rem;
+}
+
+.blazor-error-boundary {
+    background: var(--danger);
+    color: white;
+    padding: 1rem 1.25rem;
+}
+
+.blazor-error-boundary::after {
+    content: "An error has occurred.";
+}
+
+.valid.modified:not([type="checkbox"]) {
+    outline: 1px solid #268b58;
+}
+
+.invalid,
+.validation-message {
+    color: var(--danger);
+}
+
+@media (max-width: 42rem) {
+    .app-main {
+        padding: 1rem;
+    }
+
+    .auth-panel,
+    .entities-panel {
+        padding: 1rem;
+    }
+
+    .page-header {
+        align-items: flex-start;
+        flex-direction: column;
+    }
+
+    .page-header p {
+        text-align: left;
+    }
+}
+
+@media (prefers-reduced-motion: reduce) {
+    button {
+        transition: none;
+    }
+}
 .valid.modified:not([type=checkbox]) {
     outline: 1px solid #26b050;
 }
