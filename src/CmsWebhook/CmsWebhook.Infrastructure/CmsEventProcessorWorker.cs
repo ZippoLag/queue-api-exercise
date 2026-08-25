@@ -26,6 +26,7 @@ public class CmsEventProcessorWorker : BackgroundService
     private readonly OutboxChannel _outbox;
     private readonly IServiceScopeFactory _scopeFactory;
     private readonly ILogger<CmsEventProcessorWorker> _logger;
+    private readonly IHostApplicationLifetime? _applicationLifetime;
 
     /// <summary>
     /// Creates the worker.
@@ -33,43 +34,85 @@ public class CmsEventProcessorWorker : BackgroundService
     /// <param name="outbox">The in-process notification channel.</param>
     /// <param name="scopeFactory">The scope factory used to resolve scoped services per sweep.</param>
     /// <param name="logger">The logger.</param>
+    /// <param name="applicationLifetime">The host lifetime used to delay processing until startup completes.</param>
     public CmsEventProcessorWorker(
         OutboxChannel outbox,
         IServiceScopeFactory scopeFactory,
-        ILogger<CmsEventProcessorWorker> logger)
+        ILogger<CmsEventProcessorWorker> logger,
+        IHostApplicationLifetime? applicationLifetime = null)
     {
         _outbox = outbox;
         _scopeFactory = scopeFactory;
         _logger = logger;
+        _applicationLifetime = applicationLifetime;
     }
 
     /// <inheritdoc/>
     protected override async Task ExecuteAsync(CancellationToken stoppingToken)
     {
         _logger.LogInformation("CMS event processor worker started.");
-        await ProcessPendingAsync(stoppingToken);
-
-        while (!stoppingToken.IsCancellationRequested)
+        try
         {
-            var signal = _outbox.Reader.WaitToReadAsync(stoppingToken).AsTask();
-            var timer = Task.Delay(SweepInterval, stoppingToken);
-            await Task.WhenAny(signal, timer);
+            if (_applicationLifetime is not null)
+            {
+                await WaitForApplicationStartedAsync(stoppingToken);
+            }
 
-            try
+            if (stoppingToken.IsCancellationRequested)
             {
-                await ProcessPendingAsync(stoppingToken);
+                return;
             }
-            catch (OperationCanceledException) when (stoppingToken.IsCancellationRequested)
+
+            await ProcessPendingAsync(stoppingToken);
+
+            while (!stoppingToken.IsCancellationRequested)
             {
-                break;
+                var signal = _outbox.Reader.WaitToReadAsync(stoppingToken).AsTask();
+                var timer = Task.Delay(SweepInterval, stoppingToken);
+                await Task.WhenAny(signal, timer);
+
+                while (_outbox.Reader.TryRead(out _))
+                {
+                }
+
+                if (stoppingToken.IsCancellationRequested)
+                {
+                    break;
+                }
+
+                try
+                {
+                    await ProcessPendingAsync(stoppingToken);
+                }
+                catch (OperationCanceledException) when (stoppingToken.IsCancellationRequested)
+                {
+                    break;
+                }
+                catch (ObjectDisposedException) when (stoppingToken.IsCancellationRequested)
+                {
+                    break;
+                }
+                catch (Exception exception)
+                {
+                    _logger.LogError(exception, "Outbox sweep failed; it will be retried on the next cycle.");
+                }
             }
-            catch (Exception exception)
-            {
-                _logger.LogError(exception, "Outbox sweep failed; it will be retried on the next cycle.");
-            }
+        }
+        catch (OperationCanceledException) when (stoppingToken.IsCancellationRequested)
+        {
+        }
+        catch (ObjectDisposedException) when (stoppingToken.IsCancellationRequested)
+        {
         }
 
         _logger.LogInformation("CMS event processor worker stopped.");
+    }
+
+    private async Task WaitForApplicationStartedAsync(CancellationToken stoppingToken)
+    {
+        await Task.WhenAny(
+            Task.Delay(Timeout.InfiniteTimeSpan, _applicationLifetime!.ApplicationStarted),
+            Task.Delay(Timeout.InfiniteTimeSpan, stoppingToken));
     }
 
     /// <summary>

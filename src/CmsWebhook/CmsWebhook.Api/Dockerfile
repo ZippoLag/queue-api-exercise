@@ -14,6 +14,7 @@ WORKDIR /src
 # Restore layer first: copy only the project files so package restore is cached
 # across rebuilds, then the full source tree for the publish step.
 COPY global.json Directory.Build.props ./
+COPY src/Shared/QueueApi.Persistence/QueueApi.Persistence.csproj src/Shared/QueueApi.Persistence/
 COPY src/Shared/QueueApi.Auth/QueueApi.Auth.csproj src/Shared/QueueApi.Auth/
 COPY src/CmsWebhook/CmsWebhook.Domain/CmsWebhook.Domain.csproj src/CmsWebhook/CmsWebhook.Domain/
 COPY src/CmsWebhook/CmsWebhook.Application/CmsWebhook.Application.csproj src/CmsWebhook/CmsWebhook.Application/
